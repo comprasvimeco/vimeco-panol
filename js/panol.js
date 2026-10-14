@@ -461,7 +461,39 @@ function fichaArticulo(a) {
 function datalist(id, valores) {
   return `<datalist id="${id}">${[...new Set(valores.filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
 }
-const catsConocidas = () => [...arts.map(a => a.categoria), ...CATEGORIAS];
+const catsConocidas = () => [...new Set([...arts.map(a => a.categoria), ...CATEGORIAS].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+
+/* Desplegable propio para un campo de texto con sugerencias. El <datalist> no sirve acá:
+   con el campo ya cargado sólo muestra lo que coincide (o nada), y en varios celulares ni se abre.
+   Al enfocar muestra todas; al escribir, filtra. Igual se puede escribir una nueva. */
+function comboLista(input, valores) {
+  const box = document.createElement('div');
+  box.className = 'pn-pick-res hidden';
+  input.insertAdjacentElement('afterend', box);
+  let filtradas = [], sel = -1;
+  function pintar(todas) {
+    const q = todas ? '' : normTxt(input.value);
+    filtradas = valores.filter(v => !q || normTxt(v).includes(q));
+    if (!filtradas.length) { box.classList.add('hidden'); return; }
+    box.innerHTML = filtradas.map((v, i) => `<button type="button" class="${i === sel ? 'on' : ''}" data-v="${i}"><b>${esc(v)}</b></button>`).join('');
+    box.classList.remove('hidden');
+    box.scrollIntoView({ block: 'nearest' });
+  }
+  const elegir = i => { if (filtradas[i] == null) return; input.value = filtradas[i]; box.classList.add('hidden'); sel = -1; };
+  input.addEventListener('focus', () => { sel = -1; pintar(true); });
+  input.addEventListener('click', () => { if (box.classList.contains('hidden')) pintar(true); });
+  input.addEventListener('input', () => { sel = -1; pintar(false); });
+  input.addEventListener('keydown', e => {
+    if (box.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, filtradas.length - 1); pintar(!input.value); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); pintar(!input.value); }
+    else if (e.key === 'Enter' && sel >= 0) { e.preventDefault(); elegir(sel); }
+    else if (e.key === 'Escape') { e.stopPropagation(); box.classList.add('hidden'); }
+  });
+  box.addEventListener('mousedown', e => e.preventDefault());
+  box.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) elegir(+b.dataset.v); });
+  input.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 120));
+}
 
 function formArticulo(a) {
   const nuevo = !a;
@@ -479,7 +511,7 @@ function formArticulo(a) {
           <input id="fa-minimo" class="form-control" inputmode="decimal" value="${a && a.minimo ? fmtN(a.minimo) : ''}" placeholder="0 = sin aviso"></div>
       </div>
       <div class="form-group"><label for="fa-cat">Categoría</label>
-        <input id="fa-cat" class="form-control" list="dl-cats" value="${esc(a ? a.categoria || '' : '')}" placeholder="Elegí o escribí una" autocomplete="off">${datalist('dl-cats', catsConocidas())}</div>
+        <input id="fa-cat" class="form-control" value="${esc(a ? a.categoria || '' : '')}" placeholder="Elegí o escribí una" autocomplete="off"></div>
       <div class="pn-err hidden" id="fa-err"></div>
       <div class="eq-dlg-f">
         ${!nuevo ? `<button type="button" class="foc-btn ${a.activo ? 'foc-btn--del' : 'foc-btn--gen'}" id="fa-baja">${icSvg(a.activo ? 'slash' : 'undo')}${a.activo ? 'Dar de baja' : 'Reactivar'}</button>` : ''}
@@ -487,6 +519,7 @@ function formArticulo(a) {
         <button type="button" class="foc-btn foc-btn--edit" id="fa-ok">${icSvg('checkSm')}${nuevo ? 'Crear' : 'Guardar'}</button>
       </div>`
   });
+  comboLista($('fa-cat'), catsConocidas());
   setTimeout(() => $('fa-nombre').focus(), 50);
   const err = m => { $('fa-err').textContent = m; $('fa-err').classList.remove('hidden'); };
   $('fa-ok').onclick = async () => {
@@ -643,6 +676,7 @@ async function formMovimiento(tipo, artInicial) {
       ? `<button type="button" class="crear${i === sel ? ' on' : ''}" data-r="${i}">${icSvg('plus')}<b>Crear "${esc(r.crear)}"</b></button>`
       : `<button type="button" class="${i === sel ? 'on' : ''}" data-r="${i}">${icSvg('box')}<b>${esc(r.a.nombre)}</b><small>${fmtN(r.a.stock)} ${esc(r.a.unidad)}</small></button>`).join('');
     $('fm-res').classList.remove('hidden');
+    $('fm-res').scrollIntoView({ block: 'nearest' });
   }
   function elegir(i) {
     const r = res[i];
@@ -671,11 +705,12 @@ async function formMovimiento(tipo, artInicial) {
         <div class="form-group"><label for="fn-unidad">Unidad</label><input id="fn-unidad" class="form-control" list="dl-unidades2" value="u" autocomplete="off">${datalist('dl-unidades2', UNIDADES)}</div>
         <div class="form-group"><label for="fn-min">Stock mínimo</label><input id="fn-min" class="form-control" inputmode="decimal" placeholder="Opcional"></div>
       </div>
-      <div class="form-group"><label for="fn-cat">Categoría</label><input id="fn-cat" class="form-control" list="dl-cats2" autocomplete="off" placeholder="Elegí o escribí una">${datalist('dl-cats2', catsConocidas())}</div>
+      <div class="form-group"><label for="fn-cat">Categoría</label><input id="fn-cat" class="form-control" autocomplete="off" placeholder="Elegí o escribí una"></div>
       <div class="eq-dlg-f" style="margin:.1rem 0 .5rem">
         <button type="button" class="foc-btn foc-btn--clear" id="fn-no">Cancelar</button>
         <button type="button" class="foc-btn foc-btn--gen" id="fn-ok">${icSvg('plus')}Agregar</button></div>`;
     box.classList.remove('hidden');
+    comboLista($('fn-cat'), catsConocidas());
     setTimeout(() => $('fn-unidad').select(), 30);
     $('fn-no').onclick = () => { box.classList.add('hidden'); box.innerHTML = ''; };
     $('fn-ok').onclick = () => {

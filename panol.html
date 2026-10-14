@@ -151,9 +151,11 @@
     .pn-x { width: 30px; height: 30px; border-radius: 999px; border: none; background: transparent; color: var(--gray-400); display: grid; place-items: center; cursor: pointer; }
     .pn-x:hover { background: #fde6e6; color: #b02a2a; }
     .pn-x .icon { width: 14px; height: 14px; }
+    /* La lista va en el flujo y no flotando: el diálogo tiene overflow-y:auto y una lista absoluta quedaba cortada en el borde de la tarjeta. */
     .pn-pick { position: relative; }
-    .pn-pick-res { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
-      box-shadow: 0 14px 34px -12px rgba(26,58,92,.45); max-height: 240px; overflow-y: auto; padding: .3rem; }
+    .pn-pick-res { margin: -.4rem 0 .7rem; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
+      box-shadow: 0 10px 26px -14px rgba(26,58,92,.4); max-height: 240px; overflow-y: auto; padding: .3rem; }
+    .form-group > .pn-pick-res { margin: .3rem 0 0; }
     .pn-pick-res button { display: flex; align-items: center; gap: .5rem; width: 100%; border: 0; background: none; font: inherit; font-size: .86rem; text-align: left;
       padding: .45rem .55rem; border-radius: 8px; cursor: pointer; color: var(--gray-700); }
     .pn-pick-res button:hover, .pn-pick-res button.on { background: var(--gray-100); }
