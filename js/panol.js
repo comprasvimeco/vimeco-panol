@@ -55,7 +55,8 @@ function fechaLarga(iso) {
 }
 const fechaCorta = iso => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const hora = ts => ts ? new Date(ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-const falta = a => a.activo && (a.minimo || 0) > 0 && a.stock < a.minimo;
+// Falta lo que se quedó sin stock (tenga mínimo o no) o está por debajo del mínimo.
+const falta = a => a.activo && (a.stock <= 0 || ((a.minimo || 0) > 0 && a.stock < a.minimo));
 const plural = (n, s, p) => `${fmtN(n)} ${n === 1 ? s : p}`;
 const sinTitulo = n => String(n || '').split(/\s+/).filter(p => p && !p.endsWith('.')).join(' ') || String(n || '');
 
@@ -227,7 +228,7 @@ function pintarStock() {
     return;
   }
   if (!lista.length) {
-    cont.innerHTML = `<div class="pn-vacio">${vista.modo === 'falta' && !q ? 'No falta nada: todo está por encima del mínimo.' : 'No hay materiales que coincidan.'}</div>`;
+    cont.innerHTML = `<div class="pn-vacio">${vista.modo === 'falta' && !q ? 'No falta nada: todo tiene stock y está por encima del mínimo.' : 'No hay materiales que coincidan.'}</div>`;
     return;
   }
   const grupos = {};
@@ -241,7 +242,7 @@ function pintarStock() {
 function filaArt(a) {
   const f = falta(a);
   const tag = !a.activo ? '<span class="pn-tag pn-tag--baja">De baja</span>'
-    : a.stock <= 0 && (f || a.minimo === 0) ? '<span class="pn-tag pn-tag--cero">Sin stock</span>'
+    : a.stock <= 0 ? '<span class="pn-tag pn-tag--cero">Sin stock</span>'
     : f ? '<span class="pn-tag pn-tag--falta">Bajo mínimo</span>' : '';
   const l2 = [a.minimo ? `Mín. ${fmtN(a.minimo)}` : '', tag].filter(Boolean).join(' · ') || '&nbsp;';
   return `<button type="button" class="pn-r${f ? ' falta' : ''}${a.activo ? '' : ' baja'}" data-art="${esc(a.id)}">

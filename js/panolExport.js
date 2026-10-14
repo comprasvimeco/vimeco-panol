@@ -32,7 +32,7 @@
   const num = n => n3(n).toLocaleString('es-AR', { maximumFractionDigits: 3 });
   const fecha = iso => { if (!iso) return '—'; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
   const ahora = () => { const d = new Date(); return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }); };
-  const falta = a => a.activo && (a.minimo || 0) > 0 && a.stock < a.minimo;
+  const falta = a => a.activo && (a.stock <= 0 || ((a.minimo || 0) > 0 && a.stock < a.minimo));
   const porNombre = (a, b) => a.nombre.localeCompare(b.nombre, 'es');
   const TIPO = { ingreso: 'Ingreso', salida: 'Salida', ajuste: 'Ajuste', traspaso_out: 'Pasó a obra', traspaso_in: 'Llegó de obra' };
   const SIGNO = { ingreso: 1, traspaso_in: 1, salida: -1, traspaso_out: -1, ajuste: 1 };
@@ -62,7 +62,7 @@
       return {
         titulo: 'STOCK DEL PAÑOL', sub, hoja: d.cat || 'Stock',
         cols: [{ h: 'Material', w: 80 }, { h: 'Unidad', w: 18 }, { h: 'Stock', w: 26, n: 1 }, { h: 'Mínimo', w: 26, n: 1 }, { h: 'Estado', w: 36 }],
-        kpis: [['Materiales', activos.length], ['Bajo mínimo', activos.filter(falta).length, 1], ['Sin stock', activos.filter(a => a.stock <= 0).length, 1]],
+        kpis: [['Materiales', activos.length], ['Bajo mínimo', activos.filter(a => falta(a) && a.stock > 0).length, 1], ['Sin stock', activos.filter(a => a.stock <= 0).length, 1]],
         filas
       };
     }
@@ -72,7 +72,7 @@
         titulo: 'FALTANTES DEL PAÑOL', sub, hoja: d.cat ? 'Faltan ' + d.cat : 'Faltantes',
         cols: [{ h: 'Material', w: 62 }, { h: 'Categoría', w: 38 }, { h: 'Unidad', w: 16 }, { h: 'Stock', w: 22, n: 1 }, { h: 'Mínimo', w: 22, n: 1 }, { h: 'A pedir', w: 26, n: 1 }],
         kpis: [['Materiales a pedir', lista.length, 1], ['Sin stock', lista.filter(a => a.stock <= 0).length, 1]],
-        filas: lista.map(a => ({ v: [a.nombre, a.categoria || 'Varios', a.unidad || 'u', n3(a.stock), n3(a.minimo), n3(a.minimo - a.stock)], fuerte: 5 }))
+        filas: lista.map(a => ({ v: [a.nombre, a.categoria || 'Varios', a.unidad || 'u', n3(a.stock), a.minimo ? n3(a.minimo) : '', a.minimo ? n3(a.minimo - a.stock) : ''], fuerte: 5 }))
       };
     }
     const movs = d.movs.filter(m => !m.anulado)

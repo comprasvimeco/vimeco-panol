@@ -141,7 +141,7 @@
     await Promise.all(keys.map(async k => {
       try {
         const arts = Object.values((await _get(`/panol/${k}/articulos.json`)) || {}).filter(a => a && a.nombre && a.activo !== false);
-        out[k] = { articulos: arts.length, faltan: arts.filter(a => (a.minimo || 0) > 0 && (a.stock || 0) < a.minimo).length };
+        out[k] = { articulos: arts.length, faltan: arts.filter(a => (a.stock || 0) <= 0 || ((a.minimo || 0) > 0 && a.stock < a.minimo)).length };
       } catch (_) {}
     }));
     return out;
