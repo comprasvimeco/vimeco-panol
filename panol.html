@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="VIMECO Pañol">
   <style>
-    /* ===== Pañol: misma estética de pastillas que Equipos / Personal de VIMECO OC =====
+    /* ===== Pañol: estética de pastillas =====
        Tonos por tipo de movimiento: ingreso verde, salida ámbar, ajuste violeta, traspaso celeste, faltante rojo. */
     .pn-main { max-width: 1000px; }
     .pn-ttl { display: flex; align-items: center; gap: .45rem; margin-bottom: .8rem; flex-wrap: wrap; }
@@ -128,7 +128,7 @@
     .pn-obras .menu-card-sub { margin-top: -.55rem; }
     .pn-rol { font-size: .68rem; font-weight: 700; border-radius: 999px; padding: .1rem .5rem; background: var(--gray-100); color: var(--gray-600); margin-top: -.5rem; }
     .pn-rol--edit { background: #dff3e5; color: #1a7f3c; }
-    .pn-cfg-link { display: flex; justify-content: center; margin-top: 1.4rem; }
+    .pn-cfg-link { display: flex; justify-content: center; gap: .5rem; flex-wrap: wrap; margin-top: 1.4rem; }
     @media (max-width: 500px) { .pn-obras .menu-card-sub { display: block; } }
 
     /* Diálogos */
@@ -198,6 +198,12 @@
     .pn-cfg-r small { display: block; color: var(--gray-500); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pn-cfg-r small.sin { color: #b02a2a; font-weight: 700; }
     .pn-cfg-r > .icon { width: 14px; height: 14px; color: var(--gray-400); }
+    .pn-cfg-r.off { opacity: .55; }
+    .pn-cfg-r .pn-tag { margin-left: .3rem; vertical-align: 1px; }
+    .pn-cfg-nuevo { display: flex; justify-content: flex-end; margin: .2rem 0 .6rem; }
+    .pn-chk { display: flex; align-items: center; gap: .55rem; font-size: .88rem; color: var(--gray-700); cursor: pointer; margin-bottom: .7rem; }
+    .pn-chk input { width: 16px; height: 16px; accent-color: var(--primary-light); }
+    .pn-chk small { color: var(--gray-500); font-size: .76rem; }
     @media (max-width: 480px) {
       .pn-row2 { grid-template-columns: 1fr; gap: 0; }
       .pn-line { grid-template-columns: minmax(0, 1fr) 88px 30px; }
@@ -232,6 +238,7 @@
     <div class="menu-grid menu-grid--tiles pn-obras" id="obras-grid"></div>
     <div class="pn-cfg-link hidden" id="cfg-link">
       <button type="button" class="foc-btn foc-btn--clear" id="btn-cfg"></button>
+      <button type="button" class="foc-btn foc-btn--clear" id="btn-usr"></button>
     </div>
   </section>
 

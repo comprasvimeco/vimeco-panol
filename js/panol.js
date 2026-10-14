@@ -1,6 +1,6 @@
 /* VIMECO S.A. — Pañol de obra
-   Quién entra: el pañolero de cada obra (carga), el jefe de obra y quienes
-   estén anotados para ver (sólo miran), y 0000/admin (todo + asignar pañoleros).
+   Quién entra: el pañolero de cada obra (carga), quienes estén anotados para
+   ver (sólo miran), y 0000/admin (todo + obras, usuarios y permisos).
    Con una sola obra se entra directo; con varias, primero se elige. La obra
    abierta va en el hash (#o=clave) para que "atrás" del teléfono vuelva a la lista. */
 
@@ -68,8 +68,8 @@ const yo = ses ? { codigo: ses.codigo, nombre: ses.nombre } : null;
 let alc = null;          // alcancePanol()
 let obra = null;         // { key, nombre, rol }
 let arts = [], movs = [];
+let personal = [];       // quienes retiraron en esta obra (para sugerir en "Retira")
 let puede = false;       // carga movimientos
-let personalObra = null; // nombres para "Retira"
 const vista = { tab: 'stock', q: '', modo: 'todos', cat: '', mes: mesDe(hoyISO()), fMov: 'todos' };
 
 // ─── Arranque ───────────────────────────────────────
@@ -84,7 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('hdr-brand').addEventListener('click', () => { if (alc && alc.obras.length > 1) location.hash = ''; });
   document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = icSvg(el.dataset.ic); });
   $('btn-exportar').innerHTML = icSvg('share') + '<span>Exportar</span>';
-  $('btn-cfg').innerHTML = icSvg('users') + 'Pañoleros y quién ve cada obra';
+  $('btn-cfg').innerHTML = icSvg('building') + 'Obras y permisos';
+  $('btn-usr').innerHTML = icSvg('users') + 'Usuarios';
   $('mes-prev').innerHTML = icSvg('chevL');
   $('mes-next').innerHTML = icSvg('chevR');
   document.querySelector('[data-tab="stock"]').innerHTML = icSvg('box') + 'Stock';
@@ -103,7 +104,7 @@ async function iniciar() {
     $('reint').onclick = iniciar;
     return;
   }
-  if (!alc.obras.length) {
+  if (!alc.obras.length && !alc.admin) {
     $('cargando').innerHTML = `<div class="pn-vacio"><span class="pn-sq t-gr">${icSvg('lock')}</span>
       <b>Todavía no tenés ningún pañol asignado.</b><br>Pedile a quien administra que te anote como pañolero de una obra
       o para ver su stock.</div>`;
@@ -134,6 +135,11 @@ async function pintarObras() {
   $('cfg-link').classList.toggle('hidden', !alc.admin);
   const nombreDe = c => { const u = (alc.usuarios || []).find(x => x.codigo === c); return u ? u.nombre : null; };
   const pintar = res => {
+    if (!alc.obras.length) {
+      $('obras-grid').innerHTML = `<div class="pn-vacio" style="grid-column:1/-1"><span class="pn-sq">${icSvg('building')}</span>
+        Todavía no hay obras.<br>Creá la primera desde <b>Obras y permisos</b>, y a la gente desde <b>Usuarios</b>.</div>`;
+      return;
+    }
     $('obras-grid').innerHTML = alc.obras.map(o => {
       const r = res && res[o.key];
       const sub = !res ? '…' : r && r.articulos ? plural(r.articulos, 'material', 'materiales') : 'Sin materiales cargados';
@@ -160,7 +166,6 @@ async function abrirObra(key, silencioso) {
   if (!o) return pintarObras();
   if (!obra || obra.key !== key) {
     vista.q = ''; vista.modo = 'todos'; vista.cat = ''; vista.tab = 'stock';
-    personalObra = null;
     $('buscar').value = '';
   }
   obra = o;
@@ -168,7 +173,7 @@ async function abrirObra(key, silencioso) {
   $('btn-back').classList.toggle('hidden', alc.obras.length === 1 && !alc.admin);
   if (!silencioso) { mostrar('cargando'); $('cargando').textContent = 'Cargando el pañol de ' + o.nombre + '…'; }
   try {
-    ({ articulos: arts, movimientos: movs } = await getPanol(key));
+    ({ articulos: arts, movimientos: movs, personal } = await getPanol(key));
   } catch (err) {
     mostrar('cargando');
     $('cargando').innerHTML = `No se pudo cargar el pañol. Revisá la conexión.<br><button type="button" class="foc-btn foc-btn--edit" style="margin-top:.8rem" id="reint">${icSvg('rotate')}Reintentar</button>`;
@@ -343,6 +348,7 @@ function enlazar() {
   });
   $('btn-exportar').addEventListener('click', dlgExportar);
   $('btn-cfg').addEventListener('click', dlgConfig);
+  $('btn-usr').addEventListener('click', dlgUsuarios);
   $('dlg-ov').addEventListener('mousedown', e => { if (e.target === $('dlg-ov') && !dlgEstado.fijo) cerrarDlg(); });
   // (Con una confirmación abierta encima, su propio Escape corta el evento antes de llegar acá.)
   document.addEventListener('keydown', e => {
@@ -507,7 +513,7 @@ async function formMovimiento(tipo, artInicial) {
       <div class="form-group"><label for="fm-prov">Proveedor / de dónde viene</label><input id="fm-prov" class="form-control" list="dl-prov" autocomplete="off">${datalist('dl-prov', usados('proveedor'))}</div>
       <div class="form-group"><label for="fm-rem">Remito Nº</label><input id="fm-rem" class="form-control" autocomplete="off" placeholder="Opcional"></div></div>`;
   if (tipo === 'salida') extra = `<div class="pn-row2">
-      <div class="form-group"><label for="fm-ret">Retira</label><input id="fm-ret" class="form-control" list="dl-ret" autocomplete="off" placeholder="Quién se lo lleva"><datalist id="dl-ret"></datalist></div>
+      <div class="form-group"><label for="fm-ret">Retira</label><input id="fm-ret" class="form-control" list="dl-ret" autocomplete="off" placeholder="Quién se lo lleva">${datalist('dl-ret', personal)}</div>
       <div class="form-group"><label for="fm-dest">Para qué / dónde</label><input id="fm-dest" class="form-control" list="dl-dest" autocomplete="off" placeholder="Ej: Frente norte, cordón cuneta">${datalist('dl-dest', usados('destino'))}</div></div>`;
   if (tipo === 'traspaso') extra = `<div class="form-group"><label for="fm-obra">Obra de destino *</label>
       <select id="fm-obra" class="form-control"><option value="">Elegí la obra</option>${otrasObras.map(o => `<option value="${esc(o.key)}">${esc(o.nombre)}</option>`).join('')}</select></div>`;
@@ -531,13 +537,6 @@ async function formMovimiento(tipo, artInicial) {
         <button type="button" class="foc-btn ${F.btn}" id="fm-ok">${icSvg('checkSm')}${F.boton}</button>
       </div>`
   });
-
-  if (tipo === 'salida') {
-    const llenar = nombres => { $('fm-ret') && ($('fm-ret').nextElementSibling.innerHTML = [...new Set([...usados('retira'), ...nombres])].map(v => `<option value="${esc(v)}">`).join('')); };
-    llenar([]);
-    if (!personalObra) getPersonalDeObra(obra.key).then(p => { personalObra = p; llenar(p); }).catch(() => {});
-    else llenar(personalObra);
-  }
 
   const err = m => { $('fm-err').textContent = m; $('fm-err').classList.toggle('hidden', !m); };
   const artDe = id => arts.find(a => a.id === id);
@@ -698,7 +697,10 @@ async function formMovimiento(tipo, artInicial) {
           if (r) mov.remito = r;
         }
         if (tipo === 'salida') {
-          const r = $('fm-ret').value.trim(), d = $('fm-dest').value.trim();
+          // Si ya retiró antes, se guarda como figura ("juan perez" → "Juan Pérez").
+          let r = $('fm-ret').value.trim().replace(/\s+/g, ' ');
+          const d = $('fm-dest').value.trim();
+          r = personal.find(p => normTxt(p) === normTxt(r)) || r;
           if (r) mov.retira = r;
           if (d) mov.destino = d;
         }
@@ -802,12 +804,18 @@ function dlgExportar() {
   };
 }
 
-// ─── Pañoleros y permisos (0000 / admin) ────────────
+// ─── Obras y permisos (0000 / admin) ────────────────
+// Después de tocar obras o usuarios: rehace el alcance y, si está a la vista, la lista de obras.
+async function refrescarAlcance() {
+  try { alc = await alcancePanol(yo.codigo); } catch (_) { return; }
+  if (!obra) pintarObras();
+}
+
 async function dlgConfig() {
-  const d = abrirDlg({ icono: 'users', titulo: 'Pañoleros y quién ve cada obra', sub: 'Cargando…', cuerpo: '' });
-  let cfg, usuarios;
+  const d = abrirDlg({ icono: 'building', titulo: 'Obras y permisos', sub: 'Cargando…', cuerpo: '' });
+  let cfg, usuarios, obras;
   try {
-    [cfg, usuarios] = await Promise.all([getPanolConfig(), alc.usuarios && alc.usuarios.length ? alc.usuarios : getAllUsuarios()]);
+    [cfg, usuarios, obras] = await Promise.all([getPanolConfig(), alc.usuarios && alc.usuarios.length ? alc.usuarios : getAllUsuarios(), getObras()]);
     alc.usuarios = usuarios;
   } catch (e) {
     d.querySelector('p').textContent = 'No se pudo cargar. Revisá la conexión.';
@@ -815,44 +823,53 @@ async function dlgConfig() {
   }
   const activos = usuarios.filter(u => u.activo && u.codigo !== '0000').sort((a, b) => sinTitulo(a.nombre).localeCompare(sinTitulo(b.nombre), 'es'));
   const nombre = c => { const u = usuarios.find(x => x.codigo === c); return u ? sinTitulo(u.nombre) : c; };
-  const obras = alc.todas.filter(o => o.activa);
-  d.querySelector('p').textContent = 'Tocá una obra para elegir su pañolero (carga) y quiénes pueden ver el stock.';
-  d.insertAdjacentHTML('beforeend', `<div class="pn-rows" style="box-shadow:none;border:1.5px solid var(--gray-200)">${obras.map(o => {
-    const c = cfg[o.key] || {};
-    const nv = Object.keys(c.visores || {}).length + Object.keys(o.jefes || {}).length;
-    return `<button type="button" class="pn-cfg-r" data-o="${esc(o.key)}"><span class="pn-sq">${icSvg('building')}</span><span class="mid"><b>${esc(o.nombre)}</b>
-      <small class="${c.panolero ? '' : 'sin'}">${c.panolero ? 'Pañolero: ' + esc(nombre(c.panolero)) : 'Sin pañolero'}${nv ? ` · ${nv} ${nv === 1 ? 've' : 'ven'}` : ''}</small></span>${icSvg('chevR')}</button>`;
-  }).join('')}</div>`);
+  // Las activas primero; las cerradas quedan abajo, apagadas.
+  obras.sort((a, b) => b.activa - a.activa);
+  d.querySelector('p').textContent = obras.length
+    ? 'Tocá una obra para cambiarle el nombre, elegir su pañolero (carga) y quiénes pueden ver el stock.'
+    : 'Todavía no hay obras: creá la primera.';
+  d.insertAdjacentHTML('beforeend', `<div class="pn-cfg-nuevo"><button type="button" class="foc-btn foc-btn--gen" id="cf-nueva">${icSvg('plus')}Nueva obra</button></div>` +
+    (obras.length ? `<div class="pn-rows" style="box-shadow:none;border:1.5px solid var(--gray-200)">${obras.map(o => {
+      const c = cfg[o.key] || {};
+      const nv = Object.keys(c.visores || {}).length;
+      return `<button type="button" class="pn-cfg-r${o.activa ? '' : ' off'}" data-o="${esc(o.key)}"><span class="pn-sq">${icSvg('building')}</span><span class="mid"><b>${esc(o.nombre)}${o.activa ? '' : '<span class="pn-tag pn-tag--baja">Cerrada</span>'}</b>
+        <small class="${c.panolero || !o.activa ? '' : 'sin'}">${c.panolero ? 'Pañolero: ' + esc(nombre(c.panolero)) : 'Sin pañolero'}${nv ? ` · ${nv} ${nv === 1 ? 've' : 'ven'}` : ''}</small></span>${icSvg('chevR')}</button>`;
+    }).join('')}</div>` : ''));
   d.addEventListener('click', e => {
+    if (e.target.closest('#cf-nueva')) return editarCfg(null, {}, activos, obras);
     const b = e.target.closest('[data-o]');
-    if (b) editarCfg(obras.find(o => o.key === b.dataset.o), cfg[b.dataset.o] || {}, activos, nombre);
+    if (b) editarCfg(obras.find(o => o.key === b.dataset.o), cfg[b.dataset.o] || {}, activos, obras);
   });
 }
 
-function editarCfg(o, c, activos, nombre) {
+function editarCfg(o, c, activos, obras) {
+  const nueva = !o;
   const visores = new Set(Object.keys(c.visores || {}));
-  const jefes = Object.keys(o.jefes || {});
   abrirDlg({
-    icono: 'building', titulo: o.nombre, fijo: true,
-    sub: jefes.length ? `Los jefes de obra de VIMECO OC ya lo ven: ${esc(jefes.map(nombre).join(', '))}.` : 'Esta obra no tiene jefe de obra asignado en VIMECO OC.',
-    cuerpo: `<div class="form-group"><label for="cf-pan">Pañolero (carga ingresos y salidas)</label>
+    icono: nueva ? 'plus' : 'building', titulo: nueva ? 'Nueva obra' : o.nombre, fijo: true,
+    sub: nueva ? 'El pañolero y quiénes ven se pueden elegir ahora o después.' : '',
+    cuerpo: `<div class="form-group"><label for="cf-nombre">Nombre de la obra *</label>
+        <input id="cf-nombre" class="form-control" value="${esc(nueva ? '' : o.nombre)}" placeholder="Ej: Ruta 7 — Tramo II" autocomplete="off"></div>
+      ${nueva ? '' : `<label class="pn-chk"><input type="checkbox" id="cf-activa"${o.activa ? ' checked' : ''}>Obra activa
+        <small>Las cerradas no aparecen en la lista ni para pasar materiales.</small></label>`}
+      <div class="form-group"><label for="cf-pan">Pañolero (carga ingresos y salidas)</label>
         <select id="cf-pan" class="form-control"><option value="">— Nadie —</option>
         ${activos.map(u => `<option value="${esc(u.codigo)}"${u.codigo === c.panolero ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Pueden ver el stock (capataces, etc.)</label>
+      <div class="form-group"><label>Pueden ver el stock (jefes de obra, capataces, etc.)</label>
         <div class="pn-srch" style="margin-bottom:.4rem">${icSvg('search')}<input type="search" id="cf-q" placeholder="Buscar persona…" autocomplete="off"></div>
         <div class="pn-users" id="cf-users"></div>
-        <span class="form-hint">Si alguien no aparece, hay que crearle el usuario en VIMECO OC (Administración → Usuarios).</span></div>
+        <span class="form-hint">Si alguien no aparece, crealo desde Usuarios.</span></div>
       <div class="pn-err hidden" id="cf-err"></div>
       <div class="eq-dlg-f">
         <button type="button" class="foc-btn foc-btn--clear" id="cf-volver">Volver</button>
-        <button type="button" class="foc-btn foc-btn--edit" id="cf-ok">${icSvg('checkSm')}Guardar</button></div>`
+        <button type="button" class="foc-btn foc-btn--edit" id="cf-ok">${icSvg('checkSm')}${nueva ? 'Crear obra' : 'Guardar'}</button></div>`
   });
+  if (nueva) setTimeout(() => $('cf-nombre').focus(), 50);
   const pintar = () => {
     const q = normTxt($('cf-q').value);
-    $('cf-users').innerHTML = activos.filter(u => !q || normTxt(u.nombre).includes(q)).map(u => {
-      const esJefe = jefes.includes(u.codigo);
-      return `<label><input type="checkbox" value="${esc(u.codigo)}"${visores.has(u.codigo) || esJefe ? ' checked' : ''}${esJefe ? ' disabled' : ''}>${esc(u.nombre)}${esJefe ? '<small>Jefe de obra</small>' : ''}</label>`;
-    }).join('') || '<div class="pn-vacio" style="padding:.8rem">Nadie con ese nombre.</div>';
+    $('cf-users').innerHTML = activos.filter(u => !q || normTxt(u.nombre).includes(q)).map(u =>
+      `<label><input type="checkbox" value="${esc(u.codigo)}"${visores.has(u.codigo) ? ' checked' : ''}>${esc(u.nombre)}</label>`
+    ).join('') || `<div class="pn-vacio" style="padding:.8rem">${activos.length ? 'Nadie con ese nombre.' : 'Todavía no hay usuarios: crealos desde Usuarios.'}</div>`;
   };
   pintar();
   $('cf-q').addEventListener('input', pintar);
@@ -861,7 +878,12 @@ function editarCfg(o, c, activos, nombre) {
     if (cb) cb.checked ? visores.add(cb.value) : visores.delete(cb.value);
   });
   $('cf-volver').onclick = dlgConfig;
+  const err = m => { $('cf-err').textContent = m; $('cf-err').classList.remove('hidden'); };
   $('cf-ok').onclick = async () => {
+    const nombreObra = $('cf-nombre').value.trim().replace(/\s+/g, ' ');
+    if (!nombreObra) return err('Poné el nombre de la obra.');
+    const dup = obras.find(x => x.key !== (o && o.key) && normTxt(x.nombre) === normTxt(nombreObra));
+    if (dup) return err(`Ya existe la obra "${dup.nombre}"${dup.activa ? '' : ' (cerrada: abrila y reactivala)'}.`);
     const pan = $('cf-pan').value;
     const v = {};
     visores.forEach(x => { if (x !== pan) v[x] = true; });
@@ -870,16 +892,126 @@ function editarCfg(o, c, activos, nombre) {
     if (Object.keys(v).length) nuevo.visores = v;
     $('cf-ok').disabled = true;
     try {
-      await savePanolConfigObra(o.key, Object.keys(nuevo).length ? nuevo : null);
-      const enAlc = alc.obras.find(x => x.key === o.key);
-      if (enAlc) enAlc.panolero = pan || null;
-      showToast('Guardado', 'success');
+      let key;
+      if (nueva) key = await crearObra(nombreObra);
+      else {
+        key = o.key;
+        const activa = $('cf-activa').checked;
+        if (nombreObra !== o.nombre || activa !== o.activa) await patchObra(key, { nombre: nombreObra, activa });
+      }
+      if (!nueva || Object.keys(nuevo).length) await savePanolConfigObra(key, Object.keys(nuevo).length ? nuevo : null);
+      showToast(nueva ? 'Obra creada' : 'Guardado', 'success');
+      await refrescarAlcance();
       dlgConfig();
-      if (!obra) pintarObras();
     } catch (e) {
-      $('cf-err').textContent = 'No se pudo guardar: ' + e.message;
-      $('cf-err').classList.remove('hidden');
+      err('No se pudo guardar: ' + e.message);
       $('cf-ok').disabled = false;
     }
+  };
+}
+
+// ─── Usuarios (0000 / admin) ────────────────────────
+async function dlgUsuarios() {
+  const d = abrirDlg({ icono: 'users', titulo: 'Usuarios', sub: 'Cargando…', cuerpo: '' });
+  let usuarios;
+  try {
+    usuarios = await getAllUsuarios();
+    alc.usuarios = usuarios;
+  } catch (e) {
+    d.querySelector('p').textContent = 'No se pudo cargar. Revisá la conexión.';
+    return;
+  }
+  const lista = [...usuarios].sort((a, b) => (b.activo ? 1 : 0) - (a.activo ? 1 : 0) || sinTitulo(a.nombre).localeCompare(sinTitulo(b.nombre), 'es'));
+  d.querySelector('p').textContent = 'Tocá una persona para editarla o resetearle la contraseña. Qué obra carga o ve se elige en Obras y permisos.';
+  d.insertAdjacentHTML('beforeend', `<div class="pn-cfg-nuevo"><button type="button" class="foc-btn foc-btn--gen" id="us-nuevo">${icSvg('plus')}Nuevo usuario</button></div>
+    <div class="pn-srch">${icSvg('search')}<input type="search" id="us-q" placeholder="Buscar persona…" autocomplete="off"></div>
+    <div class="pn-rows" style="box-shadow:none;border:1.5px solid var(--gray-200)" id="us-lista"></div>`);
+  const pintar = () => {
+    const q = normTxt($('us-q').value);
+    const vis = lista.filter(u => !q || normTxt(u.nombre).includes(q) || u.codigo.includes(q));
+    $('us-lista').innerHTML = vis.map(u => {
+      const tags = (!u.activo ? '<span class="pn-tag pn-tag--baja">Desactivado</span>' : '') +
+        (u.resetPedido ? '<span class="pn-tag pn-tag--falta">Pide contraseña nueva</span>' : '');
+      const l2 = [u.codigo, u.admin || u.codigo === '0000' ? 'Admin' : '', u.passwordHash ? '' : 'Sin contraseña todavía'].filter(Boolean).join(' · ');
+      return `<button type="button" class="pn-cfg-r${u.activo ? '' : ' off'}" data-u="${esc(u.codigo)}"><span class="pn-sq">${icSvg('user')}</span>
+        <span class="mid"><b>${esc(u.nombre)}${tags}</b><small>${esc(l2)}</small></span>${icSvg('chevR')}</button>`;
+    }).join('') || '<div class="pn-vacio" style="padding:.8rem">Nadie con ese nombre.</div>';
+  };
+  pintar();
+  $('us-q').addEventListener('input', pintar);
+  d.addEventListener('click', e => {
+    if (e.target.closest('#us-nuevo')) return fichaUsuario(null, usuarios);
+    const b = e.target.closest('[data-u]');
+    if (b) fichaUsuario(usuarios.find(u => u.codigo === b.dataset.u), usuarios);
+  });
+}
+
+function fichaUsuario(u, usuarios) {
+  const nuevo = !u;
+  const codigo = nuevo
+    ? String(usuarios.map(x => parseInt(x.codigo, 10)).filter(n => !isNaN(n)).reduce((a, b) => Math.max(a, b), 0) + 1).padStart(4, '0')
+    : u.codigo;
+  const esSuper = codigo === '0000', soyYo = codigo === yo.codigo;
+  const estado = nuevo ? 'Al entrar por primera vez elige su contraseña.'
+    : u.resetPedido ? `<b style="color:#b02a2a">Pidió resetear la contraseña el ${new Date(u.resetPedido).toLocaleDateString('es-AR')}.</b>`
+    : u.passwordHash ? 'Ya tiene contraseña.' : 'Todavía no entró: elige su contraseña la primera vez.';
+  abrirDlg({
+    icono: nuevo ? 'plus' : 'user', titulo: nuevo ? 'Nuevo usuario' : u.nombre, fijo: true,
+    sub: `Código ${esc(codigo)} · ${estado}`,
+    cuerpo: `<div class="form-group"><label for="us-nombre">Nombre y apellido *</label>
+        <input id="us-nombre" class="form-control" value="${esc(nuevo ? '' : u.nombre)}" placeholder="Ej: Juan Pérez" autocomplete="off"></div>
+      <label class="pn-chk"><input type="checkbox" id="us-admin"${esSuper || (u && u.admin) ? ' checked' : ''}${esSuper || soyYo ? ' disabled' : ''}>Admin
+        <small>Ve y carga en todas las obras, y maneja obras y usuarios.</small></label>
+      <div class="pn-err hidden" id="us-err"></div>
+      <div class="eq-dlg-f">
+        ${!nuevo && (u.passwordHash || u.resetPedido) ? `<button type="button" class="foc-btn foc-btn--warn" id="us-reset">${icSvg('key')}Resetear contraseña</button>` : ''}
+        ${!nuevo && !esSuper && !soyYo ? `<button type="button" class="foc-btn ${u.activo ? 'foc-btn--del' : 'foc-btn--gen'}" id="us-activo">${icSvg(u.activo ? 'slash' : 'undo')}${u.activo ? 'Desactivar' : 'Reactivar'}</button>` : ''}
+        <button type="button" class="foc-btn foc-btn--clear" id="us-volver">Volver</button>
+        <button type="button" class="foc-btn foc-btn--edit" id="us-ok">${icSvg('checkSm')}${nuevo ? 'Crear' : 'Guardar'}</button></div>`
+  });
+  if (nuevo) setTimeout(() => $('us-nombre').focus(), 50);
+  const err = m => { $('us-err').textContent = m; $('us-err').classList.remove('hidden'); };
+  const listo = async msg => { showToast(msg, 'success'); await refrescarAlcance(); dlgUsuarios(); };
+  $('us-volver').onclick = dlgUsuarios;
+
+  $('us-ok').onclick = async () => {
+    const nombre = $('us-nombre').value.trim().replace(/\s+/g, ' ');
+    if (!nombre) return err('Poné el nombre.');
+    const dup = usuarios.find(x => x.codigo !== codigo && normTxt(x.nombre) === normTxt(nombre));
+    if (dup) return err(`Ya existe "${dup.nombre}" (código ${dup.codigo})${dup.activo ? '' : ', desactivado: reactivalo'}.`);
+    const admin = esSuper || $('us-admin').checked;
+    $('us-ok').disabled = true;
+    try {
+      if (nuevo) await crearUsuario(codigo, { nombre, activo: true, admin });
+      else await patchUsuario(codigo, { nombre, admin });
+      if (soyYo && nombre !== yo.nombre) {
+        yo.nombre = nombre;
+        try { localStorage.setItem('vimeco_session', JSON.stringify(yo)); } catch (_) {}
+        $('hdr-name').textContent = nombre;
+      }
+      await listo(nuevo ? 'Usuario creado' : 'Cambios guardados');
+    } catch (e) { err('No se pudo guardar: ' + e.message); $('us-ok').disabled = false; }
+  };
+
+  const bReset = $('us-reset');
+  if (bReset) bReset.onclick = async () => {
+    if (!await showConfirm('Resetear contraseña', `${u.nombre} va a tener que crear una contraseña nueva la próxima vez que entre.`,
+      { boton: 'Resetear', tono: 'warn', icono: 'key' })) return;
+    bReset.disabled = true;
+    try {
+      await patchUsuario(codigo, { passwordHash: null, resetPedido: null });
+      await listo('Contraseña reseteada');
+    } catch (e) { err('No se pudo resetear: ' + e.message); bReset.disabled = false; }
+  };
+
+  const bActivo = $('us-activo');
+  if (bActivo) bActivo.onclick = async () => {
+    if (u.activo && !await showConfirm('Desactivar usuario', `${u.nombre} no va a poder entrar más. Lo que cargó queda igual.`,
+      { boton: 'Desactivar', tono: 'del', icono: 'slash' })) return;
+    bActivo.disabled = true;
+    try {
+      await patchUsuario(codigo, { activo: !u.activo });
+      await listo(u.activo ? 'Usuario desactivado' : 'Usuario reactivado');
+    } catch (e) { err('No se pudo guardar: ' + e.message); bActivo.disabled = false; }
   };
 }

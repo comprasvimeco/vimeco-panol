@@ -8,11 +8,14 @@ Stock y movimientos del pañol de cada obra de VIMECO S.A. PWA estática (HTML/C
 
 ## Datos y permisos
 
-Usa la misma base Firebase que VIMECO OC: los usuarios (con sus contraseñas) y las obras se comparten.
-Lo propio del pañol vive en `/panol/{obra}` y `/panol_config/obras/{obra}`.
+Base Firebase propia (proyecto `vimeco-panol`), separada de VIMECO OC: `/usuarios`, `/obras`,
+`/panol/{obra}` (materiales, movimientos y personal que retira) y `/panol_config/obras/{obra}`.
 
-- **0000 / admin**: ven todas las obras, cargan y asignan pañoleros desde "Pañoleros y quién ve cada obra".
+- **0000 / admin**: ven todas las obras y cargan. Crean obras y eligen pañolero y quién ve
+  desde "Obras y permisos"; crean usuarios y resetean contraseñas desde "Usuarios".
 - **Pañolero** (uno por obra): carga movimientos.
-- **Jefe de obra** (el asignado en VIMECO OC) y quienes se anoten para ver: sólo lectura.
+- **Quienes se anoten para ver** (jefes de obra, capataces): sólo lectura.
 
-Los usuarios nuevos se crean en VIMECO OC (Administración → Usuarios).
+Con la base vacía, el primer ingreso crea el usuario 0000 (Administrador): quien entra primero le pone la contraseña.
+
+"Retira" en las salidas es texto libre: cada nombre nuevo queda guardado en esa obra y se sugiere las próximas veces.

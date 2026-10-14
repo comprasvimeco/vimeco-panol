@@ -1,15 +1,13 @@
 /* global FIREBASE_CONFIG */
-/* VIMECO S.A. — Pañol: acceso a Firebase RTDB por REST (sin SDK), igual que VIMECO OC.
+/* VIMECO S.A. — Pañol: acceso a Firebase RTDB por REST (sin SDK). Base propia,
+   separada de VIMECO OC.
 
-   Compartido con VIMECO OC (sólo se lee, salvo la contraseña al ingresar):
-     /usuarios/{codigo}            nombre, activo, admin, passwordHash…
-     /obras/{key}                  nombre, activa, jefes {codigo:true}
-     /personal/{id}                apellido, nombre, obras {obraKey:true}
-
-   Propio del pañol:
+     /usuarios/{codigo}            nombre, activo, admin, passwordHash, resetPedido
+     /obras/{key}                  nombre, activa, creadaEn
      /panol_config/obras/{obraKey} panolero: codigo, visores: {codigo:true}
      /panol/{obraKey}/articulos/{id}
          nombre, unidad, categoria, minimo, stock, activo, creadoEn
+     /panol/{obraKey}/personal/{clave}   nombre, ts   (quienes retiraron: se aprende de las salidas)
      /panol/{obraKey}/movimientos/{id}
          tipo: ingreso | salida | ajuste | traspaso_out | traspaso_in
          fecha 'YYYY-MM-DD', ts, por {codigo, nombre}
@@ -35,7 +33,7 @@
   const _patch = (path, data) => _req(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   const _put   = (path, data) => _req(path, { method: 'PUT',   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
-  // Un cuelgue de red se vuelve error (ver la misma función en VIMECO OC).
+  // Un cuelgue de red se vuelve error.
   window._fetchConTope = function (url, opts, ms = 20000) {
     const ctrl = new AbortController();
     const to   = setTimeout(() => ctrl.abort(), ms);
@@ -62,23 +60,30 @@
   };
   window.getUsuario   = codigo => _get('/usuarios/' + codigo + '.json');
   window.patchUsuario = (codigo, fields) => _patch('/usuarios/' + codigo + '.json', fields);
+  window.crearUsuario = (codigo, u) => _put('/usuarios/' + codigo + '.json', u);
 
-  // ─── Obras y personal ───────────────────────────────
+  // Base recién creada: sin ningún usuario, se arma el 0000 (admin) para poder entrar
+  // y crear al resto. Quien entre primero le pone la contraseña.
+  window.prepararBaseVacia = async function () {
+    if (await _get('/usuarios.json?shallow=true')) return false;
+    await crearUsuario('0000', { nombre: 'Administrador', activo: true, admin: true });
+    return true;
+  };
+
+  // ─── Obras ──────────────────────────────────────────
   window.getObras = async function () {
     const data = await _get('/obras.json');
     return Object.entries(data || {})
       .filter(([, o]) => o && o.nombre)
-      .map(([key, o]) => ({ key, nombre: o.nombre, activa: !!o.activa, jefes: o.jefes || {} }))
+      .map(([key, o]) => ({ key, nombre: o.nombre, activa: !!o.activa }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   };
-
-  window.getPersonalDeObra = async function (obraKey) {
-    const data = await _get('/personal.json');
-    return Object.values(data || {})
-      .filter(p => p && p.apellido && p.obras && p.obras[obraKey] && p.activo !== false)
-      .map(p => `${p.apellido} ${p.nombre || ''}`.trim())
-      .sort((a, b) => a.localeCompare(b, 'es'));
+  window.crearObra = async function (nombre) {
+    const key = nuevaClave();
+    await _put('/obras/' + key + '.json', { nombre, activa: true, creadaEn: Date.now() });
+    return key;
   };
+  window.patchObra = (key, fields) => _patch('/obras/' + key + '.json', fields);
 
   // ─── Quién ve y quién carga cada pañol ──────────────
   window.getPanolConfig = async function () {
@@ -89,7 +94,7 @@
   /* Alcance de una persona:
        0000 o admin → todas las obras activas, con permiso de carga
        pañolero de la obra → carga
-       jefe de la obra (en VIMECO OC) o anotado para ver → sólo mira */
+       anotado para ver → sólo mira */
   window.alcancePanol = async function (codigo) {
     const [u, obras, cfg] = await Promise.all([
       codigo === '0000' ? Promise.resolve({ admin: true }) : getUsuario(codigo),
@@ -103,7 +108,7 @@
       let rol = null;
       if (admin) rol = 'admin';
       else if (c.panolero === codigo) rol = 'panolero';
-      else if (o.jefes[codigo] || (c.visores && c.visores[codigo])) rol = 'ver';
+      else if (c.visores && c.visores[codigo]) rol = 'ver';
       if (rol) lista.push({ key: o.key, nombre: o.nombre, rol, panolero: c.panolero || null });
     });
     return { admin, activo: !!(u && (u.activo || codigo === '0000')), obras: lista, todas: obras, cfg };
@@ -119,8 +124,16 @@
       .filter(([, m]) => m && m.tipo)
       .map(([id, m]) => ({ id, ...m, items: Array.isArray(m.items) ? m.items : Object.values(m.items || {}) }))
       .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.ts || 0) - (a.ts || 0));
-    return { articulos, movimientos };
+    // Quienes retiraron alguna vez, el más reciente primero.
+    const personal = Object.values(data.personal || {})
+      .filter(p => p && p.nombre)
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .map(p => p.nombre);
+    return { articulos, movimientos, personal };
   };
+
+  // Clave de RTDB a partir de un nombre: "Juan Pérez" y "juan perez" son la misma persona.
+  const claveDe = s => normTxt(s).replace(/[.#$[\]/]/g, '_');
 
   // Resumen de cada obra para el selector: artículos y faltantes (sólo baja los artículos).
   window.getResumenPanoles = async function (keys) {
@@ -187,7 +200,9 @@
     const updates = {};
     const id = nuevaClave();
     const items = _aplicar(updates, obraKey, arts, mov.tipo, mov.items);
-    updates[`${obraKey}/movimientos/${id}`] = { ...mov, items, ts: Date.now() };
+    const ts = Date.now();
+    updates[`${obraKey}/movimientos/${id}`] = { ...mov, items, ts };
+    if (mov.retira) updates[`${obraKey}/personal/${claveDe(mov.retira)}`] = { nombre: mov.retira, ts };
     await _patch('/panol.json', updates);
     return id;
   };

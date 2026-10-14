@@ -1,6 +1,6 @@
-/* Ingreso (copia del de VIMECO OC, mismos usuarios y contraseñas): elegir
-   quién sos (lista con buscador o "Seguir como …" para la última persona que
-   entró en este dispositivo) y poner la contraseña, o crearla la primera vez. */
+/* Ingreso: elegir quién sos (lista con buscador o "Seguir como …" para la
+   última persona que entró en este dispositivo) y poner la contraseña, o
+   crearla la primera vez. Con la base vacía aparece sólo el 0000 (admin). */
 const LS_ULTIMO = 'vimeco_ultimo_ingreso';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     cargandoEl.classList.remove('hidden');
     pasoQuien.classList.add('hidden');
     try {
+      await prepararBaseVacia();
       usuarios = (await getAllUsuarios())
         .filter(u => u.activo)
         .sort((a, b) => sinTitulo(a.nombre).localeCompare(sinTitulo(b.nombre), 'es'));
@@ -298,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveSession(currentUser.codigo, currentUser.nombre);
   });
 
-  // ---- Olvidé la contraseña: avisar a quien administra (la resetea desde Usuarios de VIMECO OC) ----
+  // ---- Olvidé la contraseña: avisar a quien administra (la resetea desde Usuarios) ----
   function pintarOlvide() {
     const ped = currentUser && currentUser.resetPedido;
     $('lg-olvide-txt').textContent = ped
