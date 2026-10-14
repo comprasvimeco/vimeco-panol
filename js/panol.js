@@ -838,18 +838,28 @@ function fichaMovimiento(m) {
 // ─── Exportar (PDF / Excel, para mandar por WhatsApp) ─
 function dlgExportar() {
   precargarExport();
-  const nf = arts.filter(falta).length;
   const nm = movs.filter(m => (m.fecha || '').startsWith(vista.mes)).length;
-  const sel = { que: 'stock', fmt: 'pdf' };
+  const cats = [...new Set(arts.filter(a => a.activo).map(a => a.categoria || 'Varios'))].sort((a, b) => a.localeCompare(b, 'es'));
+  // Arranca en la categoría que se está mirando: así "Pinturas → Exportar" sale directo.
+  const sel = { que: 'stock', fmt: 'pdf', cat: cats.includes(vista.cat) ? vista.cat : '' };
   const opt = (grupo, v, icono, tono, t, s, dis) => `<button type="button" class="pn-opt" data-g="${grupo}" data-v="${v}" aria-pressed="${sel[grupo] === v}"${dis ? ' disabled style="opacity:.45"' : ''}>
     <span class="pn-sq ${tono}">${icSvg(icono)}</span><span><b>${t}</b><small>${s}</small></span><span class="rad"></span></button>`;
+  // Las opciones de stock y faltantes cuentan sólo la categoría elegida.
+  const opciones = () => {
+    const act = arts.filter(a => a.activo && (!sel.cat || (a.categoria || 'Varios') === sel.cat));
+    const nf = act.filter(falta).length;
+    if (sel.que === 'falta' && !nf) sel.que = 'stock';
+    const de = sel.cat ? ' de ' + sel.cat.toLowerCase() : '';
+    return `${opt('que', 'stock', 'box', '', sel.cat ? 'Stock' + de : 'Stock completo', plural(act.length, 'material', 'materiales') + ' con su cantidad y mínimo')}
+        ${opt('que', 'falta', 'alert', 't-falta', 'Lo que falta' + de, nf ? plural(nf, 'material bajo mínimo', 'materiales bajo mínimo') + ', con cuánto pedir' : 'No hay nada bajo mínimo', !nf)}
+        ${opt('que', 'movs', 'list', 't-in', 'Movimientos de ' + nombreMes(vista.mes).toLowerCase(), nm ? plural(nm, 'movimiento', 'movimientos') + (sel.cat ? ' (de todas las categorías)' : '') : 'No hay movimientos ese mes', !nm)}`;
+  };
+  const chipsCat = () => [['', 'Todas'], ...cats.map(c => [c, c])]
+    .map(([v, t]) => `<button type="button" data-xcat="${esc(v)}" aria-pressed="${v === sel.cat}">${esc(t)}</button>`).join('');
   const d = abrirDlg({
     tono: 't-gr', icono: 'share', titulo: 'Exportar', sub: 'Se genera el archivo y, en el celular, se abre para mandarlo por WhatsApp.',
-    cuerpo: `<div class="pn-sec-t" style="margin-top:0">Qué</div><div class="pn-opts">
-        ${opt('que', 'stock', 'box', '', 'Stock completo', plural(arts.filter(a => a.activo).length, 'material', 'materiales') + ' con su cantidad y mínimo')}
-        ${opt('que', 'falta', 'alert', 't-falta', 'Lo que falta', nf ? plural(nf, 'material bajo mínimo', 'materiales bajo mínimo') + ', con cuánto pedir' : 'No hay nada bajo mínimo', !nf)}
-        ${opt('que', 'movs', 'list', 't-in', 'Movimientos de ' + nombreMes(vista.mes).toLowerCase(), nm ? plural(nm, 'movimiento', 'movimientos') : 'No hay movimientos ese mes', !nm)}
-      </div>
+    cuerpo: `${cats.length > 1 ? `<div class="pn-sec-t" style="margin-top:0">Categoría</div><div class="pn-cats pn-cats--wrap" id="ex-cat">${chipsCat()}</div>` : ''}
+      <div class="pn-sec-t"${cats.length > 1 ? '' : ' style="margin-top:0"'}>Qué</div><div class="pn-opts" id="ex-que">${opciones()}</div>
       <div class="pn-sec-t">Formato</div>
       <div class="pn-seg" id="ex-fmt"><button type="button" data-f="pdf" aria-pressed="true">PDF</button><button type="button" data-f="xlsx" aria-pressed="false">Excel</button></div>
       <div class="eq-dlg-f">
@@ -858,6 +868,13 @@ function dlgExportar() {
       </div>`
   });
   d.addEventListener('click', e => {
+    const c = e.target.closest('[data-xcat]');
+    if (c) {
+      sel.cat = c.dataset.xcat;
+      $('ex-cat').innerHTML = chipsCat();
+      $('ex-que').innerHTML = opciones();
+      return;
+    }
     const o = e.target.closest('[data-g]');
     if (o && !o.disabled) {
       sel[o.dataset.g] = o.dataset.v;
@@ -874,7 +891,7 @@ function dlgExportar() {
     b.disabled = true;
     b.innerHTML = '<span class="spinner"></span> Generando…';
     try {
-      const datos = { que: sel.que, obra: obra.nombre, arts, movs: movs.filter(m => (m.fecha || '').startsWith(vista.mes)),
+      const datos = { que: sel.que, cat: sel.que === 'movs' ? '' : sel.cat, obra: obra.nombre, arts, movs: movs.filter(m => (m.fecha || '').startsWith(vista.mes)),
                       mes: vista.mes, mesNombre: nombreMes(vista.mes), por: yo.nombre };
       const file = sel.fmt === 'pdf' ? await panolPDF(datos) : await panolExcel(datos);
       await compartirOBajar(file, `Pañol ${obra.nombre}`);

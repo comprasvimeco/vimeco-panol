@@ -3,7 +3,8 @@
    y los movimientos de un mes. El PDF sigue el formato de cajaPDF.js de VIMECO OC
    (franja azul con el logo, recuadros de resumen, tabla con cabecera, pie con CUIT).
 
-   datos = { que: 'stock'|'falta'|'movs', obra, arts, movs, mes, mesNombre, por } */
+   datos = { que: 'stock'|'falta'|'movs', cat, obra, arts, movs, mes, mesNombre, por }
+   cat = '' (todas) o una categoría: stock y faltantes salen sólo de esa. */
 
 /* global LOGO_BASE64, XLSX */
 
@@ -45,7 +46,8 @@
 
   // Filas comunes a PDF y Excel.
   function tabla(d) {
-    const activos = d.arts.filter(a => a.activo);
+    const activos = d.arts.filter(a => a.activo && (!d.cat || (a.categoria || 'Varios') === d.cat));
+    const sub = (d.cat ? d.cat + ' · ' : '') + 'Al ' + ahora();
     if (d.que === 'stock') {
       const cats = {};
       activos.forEach(a => { (cats[a.categoria || 'Varios'] = cats[a.categoria || 'Varios'] || []).push(a); });
@@ -58,7 +60,7 @@
         }));
       });
       return {
-        titulo: 'STOCK DEL PAÑOL', sub: 'Al ' + ahora(), hoja: 'Stock',
+        titulo: 'STOCK DEL PAÑOL', sub, hoja: d.cat || 'Stock',
         cols: [{ h: 'Material', w: 80 }, { h: 'Unidad', w: 18 }, { h: 'Stock', w: 26, n: 1 }, { h: 'Mínimo', w: 26, n: 1 }, { h: 'Estado', w: 36 }],
         kpis: [['Materiales', activos.length], ['Bajo mínimo', activos.filter(falta).length, 1], ['Sin stock', activos.filter(a => a.stock <= 0).length, 1]],
         filas
@@ -67,7 +69,7 @@
     if (d.que === 'falta') {
       const lista = activos.filter(falta).sort((a, b) => (a.categoria || '').localeCompare(b.categoria || '', 'es') || porNombre(a, b));
       return {
-        titulo: 'FALTANTES DEL PAÑOL', sub: 'Al ' + ahora(), hoja: 'Faltantes',
+        titulo: 'FALTANTES DEL PAÑOL', sub, hoja: d.cat ? 'Faltan ' + d.cat : 'Faltantes',
         cols: [{ h: 'Material', w: 62 }, { h: 'Categoría', w: 38 }, { h: 'Unidad', w: 16 }, { h: 'Stock', w: 22, n: 1 }, { h: 'Mínimo', w: 22, n: 1 }, { h: 'A pedir', w: 26, n: 1 }],
         kpis: [['Materiales a pedir', lista.length, 1], ['Sin stock', lista.filter(a => a.stock <= 0).length, 1]],
         filas: lista.map(a => ({ v: [a.nombre, a.categoria || 'Varios', a.unidad || 'u', n3(a.stock), n3(a.minimo), n3(a.minimo - a.stock)], fuerte: 5 }))
@@ -89,9 +91,11 @@
     };
   }
 
+  const limpio = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
   const nombreArchivo = (d, ext) => {
-    const obra = d.obra.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
-    const que = d.que === 'stock' ? 'Stock' : d.que === 'falta' ? 'Faltantes' : 'Movimientos_' + d.mesNombre.replace(/\s+/g, '_');
+    const obra = limpio(d.obra);
+    const que = (d.que === 'stock' ? 'Stock' : d.que === 'falta' ? 'Faltantes' : 'Movimientos_' + d.mesNombre.replace(/\s+/g, '_'))
+      + (d.cat ? '_' + limpio(d.cat) : '');
     const hoy = new Date().toISOString().slice(0, 10);
     return `Panol_${obra}_${que}${d.que === 'movs' ? '' : '_' + hoy}.${ext}`;
   };
