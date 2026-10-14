@@ -382,11 +382,22 @@ function fichaArticulo(a) {
   const f = falta(a);
   const hist = movs.filter(m => !m.anulado && (m.items || []).some(it => it.id === a.id)).slice(0, 15);
   const ult = t => { const m = movs.find(x => !x.anulado && t.includes(x.tipo) && x.items.some(it => it.id === a.id)); return m ? fechaLarga(m.fecha) : '—'; };
+  // Quien carga corrige el stock acá mismo: se guarda como un Ajuste de inventario.
+  const ajusta = puede && a.activo;
   const d = abrirDlg({
     tono: f ? 't-falta' : '', icono: 'box', titulo: a.nombre,
     sub: esc(a.categoria || 'Varios') + (a.activo ? '' : ' · <b>dado de baja</b>'),
     cuerpo: `
-      <div class="pn-big${f ? ' falta' : ''}"><b>${fmtN(a.stock)}</b><span>${esc(a.unidad || 'u')} en el pañol</span></div>
+      ${ajusta ? `<div class="pn-aj">
+        <label class="pn-aj-lbl" for="fa-real">Quedan</label>
+        <div class="pn-aj-row">
+          <label class="pn-big pn-big--in${f ? ' falta' : ''}"><input id="fa-real" inputmode="decimal" enterkeyhint="done" autocomplete="off"
+            value="${String(a.stock).replace('.', ',')}"><span>${esc(a.unidad || 'u')}</span></label>
+          <button type="button" class="foc-btn foc-btn--vio" id="fa-aj" disabled>${icSvg('checkSm')}Ajustar</button>
+        </div>
+        <div class="pn-aj-sub" id="fa-aj-sub">Sistema: ${fmtN(a.stock)} ${esc(a.unidad || 'u')}</div>
+        <div class="pn-err hidden" id="fa-aj-err"></div>
+      </div>` : `<div class="pn-big${f ? ' falta' : ''}"><b>${fmtN(a.stock)}</b><span>${esc(a.unidad || 'u')} en el pañol</span></div>`}
       <div class="pn-kv" style="margin-top:.6rem">
         <span>Mínimo</span><b>${a.minimo ? fmtN(a.minimo) + ' ' + esc(a.unidad || 'u') + (f ? ' · <span style="color:#b02a2a">faltan ' + fmtN(a.minimo - a.stock) + '</span>' : '') : 'Sin mínimo'}</b>
         <span>Último ingreso</span><b>${ult(['ingreso', 'traspaso_in'])}</b>
@@ -411,6 +422,39 @@ function fichaArticulo(a) {
     if (b.dataset.a === 'editar') formArticulo(a);
     else formMovimiento(b.dataset.a, a);
   });
+  if (!ajusta) return;
+
+  const inp = $('fa-real'), btn = $('fa-aj');
+  const unidad = esc(a.unidad || 'u');
+  const leer = () => parseN(inp.value);
+  inp.addEventListener('focus', () => inp.select());
+  setTimeout(() => inp.focus(), 50);
+  inp.addEventListener('input', () => {
+    const n = leer(), dif = Math.round((n - a.stock) * 1000) / 1000;
+    btn.disabled = !(n >= 0) || dif === 0;
+    $('fa-aj-err').classList.add('hidden');
+    $('fa-aj-sub').innerHTML = `Sistema: ${fmtN(a.stock)} ${unidad}` +
+      (n >= 0 && dif ? ` · <b class="${dif > 0 ? 'mas' : 'menos'}">diferencia ${fmtSig(dif)}</b>` : '');
+  });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !btn.disabled) { e.preventDefault(); btn.click(); } });
+  btn.onclick = async () => {
+    const n = leer();
+    if (!(n >= 0)) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Guardando…';
+    try {
+      await registrarMovimiento(obra.key, { tipo: 'ajuste', fecha: hoyISO(), por: yo, items: [{ id: a.id, contado: n }] });
+      showToast(`${a.nombre}: ${fmtN(n)} ${a.unidad || 'u'}`, 'success');
+      cerrarDlg();
+      recargar();
+    } catch (e) {
+      const er = $('fa-aj-err');
+      er.textContent = 'No se pudo guardar: ' + e.message + '. Revisá la conexión y probá de nuevo.';
+      er.classList.remove('hidden');
+      btn.disabled = false;
+      btn.innerHTML = icSvg('checkSm') + 'Ajustar';
+    }
+  };
 }
 
 // ─── Alta / edición de un material ──────────────────
@@ -423,7 +467,7 @@ function formArticulo(a) {
   const nuevo = !a;
   const d = abrirDlg({
     icono: nuevo ? 'plus' : 'edit', titulo: nuevo ? 'Nuevo material' : 'Editar material',
-    sub: nuevo ? 'Queda en 0: el stock se suma con un Ingreso.' : 'El stock no se toca acá: para corregirlo, usá Ajuste de inventario.',
+    sub: nuevo ? 'Queda en 0: el stock se suma con un Ingreso.' : 'El stock no se toca acá: se corrige en la ficha, en "Quedan".',
     fijo: true,
     cuerpo: `
       <div class="form-group"><label for="fa-nombre">Nombre *</label>

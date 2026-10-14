@@ -170,6 +170,18 @@
     .pn-big { display: flex; align-items: baseline; gap: .4rem; font-family: var(--font-num); }
     .pn-big b { font-size: 2rem; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1; }
     .pn-big.falta b { color: #b02a2a; }
+    /* Ficha: el número grande es un campo para corregir el stock a lo que hay de verdad. */
+    .pn-aj-lbl { display: block; font-size: .72rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .3rem; }
+    .pn-aj-row { display: flex; align-items: center; gap: .5rem; }
+    .pn-aj-row .foc-btn { flex: none; }
+    .pn-big--in { flex: 1; min-width: 0; align-items: center; background: #fff; border: 1.5px solid var(--gray-300); border-radius: 12px; padding: .3rem .7rem; cursor: text; }
+    .pn-big--in:focus-within { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(37,87,167,.12); }
+    .pn-big--in input { flex: 1 1 auto; width: 100%; min-width: 3ch; border: 0; outline: 0; background: transparent; padding: 0; font: inherit; font-size: 2rem; font-weight: 700; line-height: 1.2; color: var(--primary-dark); font-variant-numeric: tabular-nums; }
+    .pn-big--in.falta input { color: #b02a2a; }
+    .pn-big--in span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gray-500); font-size: .9rem; }
+    .pn-aj-sub { font-size: .76rem; color: var(--gray-500); margin-top: .3rem; }
+    .pn-aj-sub .mas { color: #1a7f3c; }
+    .pn-aj-sub .menos { color: #b02a2a; }
     .pn-hist { margin-top: .3rem; border-top: 1px solid var(--gray-100); }
     .pn-hist > div { display: flex; gap: .55rem; align-items: center; padding: .42rem 0; border-bottom: 1px solid var(--gray-100); font-size: .82rem; }
     .pn-hist .f { color: var(--gray-500); font-size: .74rem; white-space: nowrap; font-variant-numeric: tabular-nums; width: 3.3rem; }
