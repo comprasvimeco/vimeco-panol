@@ -94,7 +94,7 @@
   /* Alcance de una persona:
        0000 o admin → todas las obras activas, con permiso de carga
        pañolero de la obra → carga
-       anotado para ver → sólo mira */
+       anotado en la obra (visores) → también carga */
   window.alcancePanol = async function (codigo) {
     const [u, obras, cfg] = await Promise.all([
       codigo === '0000' ? Promise.resolve({ admin: true }) : getUsuario(codigo),

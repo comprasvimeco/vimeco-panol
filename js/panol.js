@@ -1,6 +1,6 @@
 /* VIMECO S.A. — Pañol de obra
-   Quién entra: el pañolero de cada obra (carga), quienes estén anotados para
-   ver (sólo miran), y 0000/admin (todo + obras, usuarios y permisos).
+   Quién entra: el pañolero de cada obra y quienes estén anotados en ella (todos
+   cargan), y 0000/admin (todo + obras, usuarios y permisos).
    Con una sola obra se entra directo; con varias, primero se elige. La obra
    abierta va en el hash (#o=clave) para que "atrás" del teléfono vuelva a la lista. */
 
@@ -145,7 +145,7 @@ async function pintarObras() {
       const r = res && res[o.key];
       const sub = !res ? '…' : r && r.articulos ? plural(r.articulos, 'material', 'materiales') : 'Sin materiales cargados';
       const rol = o.rol === 'panolero' ? '<span class="pn-rol pn-rol--edit">Cargás vos</span>'
-        : o.rol === 'ver' ? '<span class="pn-rol">Solo ver</span>'
+        : o.rol === 'ver' ? '<span class="pn-rol pn-rol--edit">Cargás vos</span>'
         : `<span class="pn-rol${o.panolero ? '' : ' pn-tag--falta'}">${o.panolero ? 'Pañolero: ' + esc(sinTitulo(nombreDe(o.panolero) || o.panolero)) : 'Sin pañolero'}</span>`;
       const badge = r && r.faltan ? `<span class="menu-card-badge">${r.faltan} ${r.faltan === 1 ? 'falta' : 'faltan'}</span>` : '';
       return `<a href="#o=${encodeURIComponent(o.key)}" class="menu-card">
@@ -170,7 +170,7 @@ async function abrirObra(key, silencioso) {
     $('buscar').value = '';
   }
   obra = o;
-  puede = o.rol === 'panolero' || o.rol === 'admin';
+  puede = o.rol === 'panolero' || o.rol === 'ver' || o.rol === 'admin';
   $('btn-back').classList.toggle('hidden', alc.obras.length === 1 && !alc.admin);
   if (!silencioso) { mostrar('cargando'); $('cargando').textContent = 'Cargando el pañol de ' + o.nombre + '…'; }
   try {
@@ -927,14 +927,14 @@ async function dlgConfig() {
   // Las activas primero; las cerradas quedan abajo, apagadas.
   obras.sort((a, b) => b.activa - a.activa);
   d.querySelector('p').textContent = obras.length
-    ? 'Tocá una obra para cambiarle el nombre, elegir su pañolero (carga) y quiénes pueden ver el stock.'
+    ? 'Tocá una obra para cambiarle el nombre, elegir su pañolero y quiénes más pueden ver y cargar.'
     : 'Todavía no hay obras: creá la primera.';
   d.insertAdjacentHTML('beforeend', `<div class="pn-cfg-nuevo"><button type="button" class="foc-btn foc-btn--gen" id="cf-nueva">${icSvg('plus')}Nueva obra</button></div>` +
     (obras.length ? `<div class="pn-rows" style="box-shadow:none;border:1.5px solid var(--gray-200)">${obras.map(o => {
       const c = cfg[o.key] || {};
       const nv = Object.keys(c.visores || {}).length;
       return `<button type="button" class="pn-cfg-r${o.activa ? '' : ' off'}" data-o="${esc(o.key)}"><span class="pn-sq">${icSvg('building')}</span><span class="mid"><b>${esc(o.nombre)}${o.activa ? '' : '<span class="pn-tag pn-tag--baja">Cerrada</span>'}</b>
-        <small class="${c.panolero || !o.activa ? '' : 'sin'}">${c.panolero ? 'Pañolero: ' + esc(nombre(c.panolero)) : 'Sin pañolero'}${nv ? ` · ${nv} ${nv === 1 ? 've' : 'ven'}` : ''}</small></span>${icSvg('chevR')}</button>`;
+        <small class="${c.panolero || !o.activa ? '' : 'sin'}">${c.panolero ? 'Pañolero: ' + esc(nombre(c.panolero)) : 'Sin pañolero'}${nv ? ` · ${nv} más` : ''}</small></span>${icSvg('chevR')}</button>`;
     }).join('')}</div>` : ''));
   d.addEventListener('click', e => {
     if (e.target.closest('#cf-nueva')) return editarCfg(null, {}, activos, obras);
@@ -948,7 +948,7 @@ function editarCfg(o, c, activos, obras) {
   const visores = new Set(Object.keys(c.visores || {}));
   abrirDlg({
     icono: nueva ? 'plus' : 'building', titulo: nueva ? 'Nueva obra' : o.nombre, fijo: true,
-    sub: nueva ? 'El pañolero y quiénes ven se pueden elegir ahora o después.' : '',
+    sub: nueva ? 'El pañolero y quiénes más cargan se pueden elegir ahora o después.' : '',
     cuerpo: `<div class="form-group"><label for="cf-nombre">Nombre de la obra *</label>
         <input id="cf-nombre" class="form-control" value="${esc(nueva ? '' : o.nombre)}" placeholder="Ej: Ruta 7 — Tramo II" autocomplete="off"></div>
       ${nueva ? '' : `<label class="pn-chk"><input type="checkbox" id="cf-activa"${o.activa ? ' checked' : ''}>Obra activa
@@ -956,7 +956,7 @@ function editarCfg(o, c, activos, obras) {
       <div class="form-group"><label for="cf-pan">Pañolero (carga ingresos y salidas)</label>
         <select id="cf-pan" class="form-control"><option value="">— Nadie —</option>
         ${activos.map(u => `<option value="${esc(u.codigo)}"${u.codigo === c.panolero ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Pueden ver el stock (jefes de obra, capataces, etc.)</label>
+      <div class="form-group"><label>También pueden ver y cargar (jefes de obra, capataces, etc.)</label>
         <div class="pn-srch" style="margin-bottom:.4rem">${icSvg('search')}<input type="search" id="cf-q" placeholder="Buscar persona…" autocomplete="off"></div>
         <div class="pn-users" id="cf-users"></div>
         <span class="form-hint">Si alguien no aparece, crealo desde Usuarios.</span></div>

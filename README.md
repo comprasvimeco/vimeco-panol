@@ -14,7 +14,7 @@ Base Firebase propia (proyecto `vimeco-panol`), separada de VIMECO OC: `/usuario
 - **0000 / admin**: ven todas las obras y cargan. Crean obras y eligen pañolero y quién ve
   desde "Obras y permisos"; crean usuarios y resetean contraseñas desde "Usuarios".
 - **Pañolero** (uno por obra): carga movimientos.
-- **Quienes se anoten para ver** (jefes de obra, capataces): sólo lectura.
+- **Quienes se anoten en la obra** (jefes de obra, capataces): ven y cargan igual que el pañolero.
 
 Con la base vacía, el primer ingreso crea el usuario 0000 (Administrador): quien entra primero le pone la contraseña.
 
