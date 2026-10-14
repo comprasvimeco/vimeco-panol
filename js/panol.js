@@ -461,6 +461,8 @@ function fichaArticulo(a) {
 function datalist(id, valores) {
   return `<datalist id="${id}">${[...new Set(valores.filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
 }
+// Las de la lista fija primero, en su orden; después las que se escribieron a mano en otros materiales.
+const unidadesConocidas = () => [...new Set([...UNIDADES, ...arts.map(a => a.unidad)].filter(Boolean))];
 const catsConocidas = () => [...new Set([...arts.map(a => a.categoria), ...CATEGORIAS].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
 
 /* Desplegable propio para un campo de texto con sugerencias. El <datalist> no sirve acá:
@@ -506,7 +508,7 @@ function formArticulo(a) {
         <input id="fa-nombre" class="form-control" value="${esc(a ? a.nombre : '')}" placeholder="Ej: Cemento Loma Negra 50 kg" autocomplete="off"></div>
       <div class="pn-row2">
         <div class="form-group"><label for="fa-unidad">Unidad</label>
-          <input id="fa-unidad" class="form-control" list="dl-unidades" value="${esc(a ? a.unidad : 'u')}" autocomplete="off">${datalist('dl-unidades', UNIDADES)}</div>
+          <input id="fa-unidad" class="form-control" value="${esc(a ? a.unidad : 'u')}" autocomplete="off"></div>
         <div class="form-group"><label for="fa-minimo">Stock mínimo</label>
           <input id="fa-minimo" class="form-control" inputmode="decimal" value="${a && a.minimo ? fmtN(a.minimo) : ''}" placeholder="0 = sin aviso"></div>
       </div>
@@ -519,6 +521,7 @@ function formArticulo(a) {
         <button type="button" class="foc-btn foc-btn--edit" id="fa-ok">${icSvg('checkSm')}${nuevo ? 'Crear' : 'Guardar'}</button>
       </div>`
   });
+  comboLista($('fa-unidad'), unidadesConocidas());
   comboLista($('fa-cat'), catsConocidas());
   setTimeout(() => $('fa-nombre').focus(), 50);
   const err = m => { $('fa-err').textContent = m; $('fa-err').classList.remove('hidden'); };
@@ -702,7 +705,7 @@ async function formMovimiento(tipo, artInicial) {
     box.innerHTML = `<div class="pn-nuevo-t">Material nuevo</div>
       <div class="form-group"><input id="fn-nombre" class="form-control" value="${esc(nombre)}" aria-label="Nombre"></div>
       <div class="pn-row2">
-        <div class="form-group"><label for="fn-unidad">Unidad</label><input id="fn-unidad" class="form-control" list="dl-unidades2" value="u" autocomplete="off">${datalist('dl-unidades2', UNIDADES)}</div>
+        <div class="form-group"><label for="fn-unidad">Unidad</label><input id="fn-unidad" class="form-control" value="u" autocomplete="off"></div>
         <div class="form-group"><label for="fn-min">Stock mínimo</label><input id="fn-min" class="form-control" inputmode="decimal" placeholder="Opcional"></div>
       </div>
       <div class="form-group"><label for="fn-cat">Categoría</label><input id="fn-cat" class="form-control" autocomplete="off" placeholder="Elegí o escribí una"></div>
@@ -710,6 +713,7 @@ async function formMovimiento(tipo, artInicial) {
         <button type="button" class="foc-btn foc-btn--clear" id="fn-no">Cancelar</button>
         <button type="button" class="foc-btn foc-btn--gen" id="fn-ok">${icSvg('plus')}Agregar</button></div>`;
     box.classList.remove('hidden');
+    comboLista($('fn-unidad'), unidadesConocidas());
     comboLista($('fn-cat'), catsConocidas());
     setTimeout(() => $('fn-unidad').select(), 30);
     $('fn-no').onclick = () => { box.classList.add('hidden'); box.innerHTML = ''; };
