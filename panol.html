@@ -6,6 +6,7 @@
   <title>VIMECO Pañol</title>
   <link rel="stylesheet" href="css/styles.css">
   <link rel="icon" type="image/png" href="icono_app.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -144,8 +145,9 @@
     .pn-line .nuevo { color: #1a7f3c; font-weight: 700; }
     .pn-qty { display: flex; align-items: center; background: #fff; border: 1.5px solid var(--gray-300); border-radius: 10px; overflow: hidden; }
     .pn-qty:focus-within { border-color: var(--primary-light); }
-    .pn-qty input { width: 100%; min-width: 0; border: 0; outline: 0; padding: .45rem .3rem .45rem .5rem; font: inherit; font-size: 16px; text-align: right; font-variant-numeric: tabular-nums; background: transparent; }
-    .pn-qty span { font-size: .72rem; color: var(--gray-500); padding-right: .45rem; white-space: nowrap; }
+    /* La cifra siempre se ve: una unidad larga ("Bolsa 25 kg") se recorta, y entera está en "Hay ..." debajo del nombre. */
+    .pn-qty input { width: 100%; min-width: 3.2em; flex: 1 1 auto; border: 0; outline: 0; padding: .45rem .3rem .45rem .5rem; font: inherit; font-size: 16px; text-align: right; font-variant-numeric: tabular-nums; background: transparent; }
+    .pn-qty span { font-size: .72rem; color: var(--gray-500); padding-right: .45rem; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .pn-x { width: 30px; height: 30px; border-radius: 999px; border: none; background: transparent; color: var(--gray-400); display: grid; place-items: center; cursor: pointer; }
     .pn-x:hover { background: #fde6e6; color: #b02a2a; }
     .pn-x .icon { width: 14px; height: 14px; }
