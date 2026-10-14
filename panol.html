@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO Pañol</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" type="image/png" href="icono_app.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VIMECO Pañol">
+  <style>
+    /* ===== Pañol: misma estética de pastillas que Equipos / Personal de VIMECO OC =====
+       Tonos por tipo de movimiento: ingreso verde, salida ámbar, ajuste violeta, traspaso celeste, faltante rojo. */
+    .pn-main { max-width: 1000px; }
+    .pn-ttl { display: flex; align-items: center; gap: .45rem; margin-bottom: .8rem; flex-wrap: wrap; }
+    .pn-t { font-size: 1.45rem; font-weight: 700; color: var(--primary-dark); margin: 0 .2rem 0 0; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; }
+    .pn-push { margin-left: auto; display: flex; gap: .4rem; flex-wrap: wrap; }
+    .pn-cnt { display: inline-flex; align-items: center; gap: .3rem; background: var(--white); border: 1px solid var(--gray-200); color: var(--gray-600);
+      font-size: .76rem; font-weight: 600; padding: .2rem .65rem; border-radius: 999px; white-space: nowrap; }
+    .pn-cnt b { color: var(--primary-dark); font-variant-numeric: tabular-nums; }
+    .pn-cnt--falta { background: #fde6e6; border-color: transparent; color: #b02a2a; cursor: pointer; font: inherit; font-size: .76rem; font-weight: 700; }
+    .pn-cnt--falta b { color: #b02a2a; }
+    .pn-cnt--ro { background: var(--gray-100); border-color: transparent; }
+    .pn-cnt .icon { width: 12px; height: 12px; }
+
+    /* Botonera del pañolero */
+    .pn-acts { display: grid; grid-template-columns: 1fr 1fr auto; gap: .5rem; margin-bottom: .9rem; }
+    .pn-act { display: flex; align-items: center; gap: .65rem; border: none; border-radius: 14px; padding: .7rem .85rem; font: inherit; cursor: pointer; text-align: left;
+      box-shadow: 0 1px 2px rgba(26,58,92,.06), 0 6px 18px -10px rgba(26,58,92,.25); transition: transform .15s, filter .15s; }
+    .pn-act:hover { filter: brightness(.98); transform: translateY(-1px); }
+    .pn-act:active { transform: scale(.985); }
+    .pn-act .pn-sq { background: #ffffffb3; }
+    .pn-act b { display: block; font-size: .98rem; }
+    .pn-act small { display: block; font-size: .74rem; opacity: .8; line-height: 1.25; }
+    .pn-act--in  { background: #dff3e5; color: #1a7f3c; }
+    .pn-act--out { background: #fbeedd; color: #8a4f0d; }
+    .pn-act--mas { background: var(--white); color: var(--primary-dark); padding: .7rem; }
+    .pn-act--mas .pn-sq { background: #e8eef7; color: var(--primary); }
+    @media (max-width: 560px) {
+      .pn-act small { display: none; }
+      .pn-act--mas b { display: none; }
+    }
+
+    .pn-sq { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; background: #e8eef7; color: var(--primary); }
+    .pn-sq .icon { width: 18px; height: 18px; }
+    .t-in   { background: #dff3e5; color: #1a7f3c; }
+    .t-out  { background: #fbeedd; color: #8a4f0d; }
+    .t-aj   { background: #f1e8fb; color: #6b3fa0; }
+    .t-tr   { background: #e0f0fb; color: #0e6a96; }
+    .t-falta{ background: #fde6e6; color: #b02a2a; }
+    .t-gr   { background: #eceef1; color: #5b6573; }
+
+    /* Pestañas Stock / Movimientos */
+    .pn-tabs { display: flex; gap: .3rem; margin-bottom: .75rem; border-bottom: 1px solid var(--gray-200); }
+    .pn-tabs button { border: none; background: none; font: inherit; font-size: .9rem; font-weight: 700; color: var(--gray-500); padding: .5rem .8rem; cursor: pointer;
+      border-bottom: 2.5px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: .4rem; }
+    .pn-tabs button .icon { width: 15px; height: 15px; }
+    .pn-tabs button[aria-selected="true"] { color: var(--primary-dark); border-bottom-color: var(--primary-light); }
+
+    .pn-flt { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; }
+    .pn-seg { display: inline-flex; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: 2px; }
+    .pn-seg button { border: none; background: none; font: inherit; font-size: .78rem; font-weight: 700; color: var(--gray-500); padding: .26rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .pn-seg button[aria-pressed="true"] { background: #e8eef7; color: var(--primary); }
+    .pn-seg button[data-f="falta"][aria-pressed="true"] { background: #fde6e6; color: #b02a2a; }
+    .pn-cats { display: flex; gap: .35rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; max-width: 100%; }
+    .pn-cats::-webkit-scrollbar { display: none; }
+    .pn-cats button { border: 1px solid var(--gray-200); background: var(--white); font: inherit; font-size: .76rem; font-weight: 600; color: var(--gray-600);
+      padding: .24rem .65rem; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; }
+    .pn-cats button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .pn-srch { position: relative; margin-bottom: .6rem; }
+    .pn-srch .icon { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--gray-400); pointer-events: none; }
+    .pn-srch input { width: 100%; padding: .6rem .8rem .6rem 2.3rem; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--white); font: inherit; font-size: .92rem; color: var(--gray-900); }
+    .pn-srch input:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(37,87,167,.12); }
+
+    /* Lista de stock */
+    .pn-rows { background: var(--white); border-radius: 14px; box-shadow: 0 1px 2px rgba(26,58,92,.06), 0 6px 18px -10px rgba(26,58,92,.25); overflow: hidden; }
+    .pn-cat-h { display: flex; align-items: center; gap: .45rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--gray-500);
+      padding: .55rem .8rem .35rem; background: #fafbfc; border-bottom: 1px solid var(--gray-100); }
+    .pn-cat-h .n { background: var(--gray-200); color: var(--gray-600); border-radius: 999px; padding: 0 .45rem; font-size: .66rem; letter-spacing: 0; }
+    .pn-r { display: flex; align-items: center; gap: .65rem; padding: .6rem .8rem; border: none; border-bottom: 1px solid var(--gray-100); width: 100%;
+      background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .pn-r:last-child { border-bottom: none; }
+    .pn-r:hover { background: #f7f9fc; }
+    .pn-r .pn-sq { width: 34px; height: 34px; border-radius: 10px; }
+    .pn-r .pn-sq .icon { width: 16px; height: 16px; }
+    .pn-r .mid { flex: 1; min-width: 0; }
+    .pn-r .nm { display: block; font-weight: 700; color: var(--primary-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pn-r .l2 { display: flex; align-items: center; gap: .35rem; font-size: .76rem; color: var(--gray-500); white-space: nowrap; overflow: hidden; }
+    .pn-r .qty { text-align: right; flex: none; font-family: var(--font-num); }
+    .pn-r .qty b { display: block; font-size: 1.12rem; font-weight: 700; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .pn-r .qty span { font-size: .72rem; color: var(--gray-500); }
+    .pn-r.falta .qty b { color: #b02a2a; }
+    .pn-r.baja { opacity: .55; }
+    .pn-tag { display: inline-flex; align-items: center; gap: .25rem; font-size: .66rem; font-weight: 700; border-radius: 999px; padding: .06rem .45rem; white-space: nowrap; }
+    .pn-tag--falta { background: #fde6e6; color: #b02a2a; }
+    .pn-tag--cero  { background: #b02a2a; color: #fff; }
+    .pn-tag--baja  { background: #eceef1; color: #5b6573; }
+
+    /* Movimientos */
+    .pn-mes { display: inline-flex; align-items: center; gap: .1rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: .1rem; }
+    .pn-mes b { font-size: .8rem; color: var(--primary-dark); padding: 0 .35rem; white-space: nowrap; min-width: 7.5rem; text-align: center; }
+    .pn-ib { width: 30px; height: 30px; border-radius: 999px; border: none; background: transparent; color: var(--gray-500); display: inline-grid; place-items: center; cursor: pointer; flex: none; padding: 0; }
+    .pn-ib:hover:not(:disabled) { background: var(--gray-100); color: var(--primary-dark); }
+    .pn-ib:disabled { opacity: .3; cursor: default; }
+    .pn-ib .icon { width: 15px; height: 15px; }
+    .pn-dia { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--gray-500); margin: .9rem .2rem .4rem; }
+    .pn-dia:first-child { margin-top: 0; }
+    .pn-mov { display: flex; gap: .7rem; background: var(--white); border-radius: 14px; padding: .75rem .85rem; margin-bottom: .5rem;
+      box-shadow: 0 1px 2px rgba(26,58,92,.06), 0 6px 18px -10px rgba(26,58,92,.25); width: 100%; border: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .pn-mov:hover { background: #fbfcfe; }
+    .pn-mov .mid { flex: 1; min-width: 0; }
+    .pn-mov .l1 { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
+    .pn-mov .l1 b { color: var(--primary-dark); font-size: .92rem; }
+    .pn-mov .l1 .hr { margin-left: auto; font-size: .72rem; color: var(--gray-400); font-variant-numeric: tabular-nums; }
+    .pn-mov .its { font-size: .82rem; color: var(--gray-700); margin-top: .15rem; line-height: 1.4; }
+    .pn-mov .its span { white-space: nowrap; }
+    .pn-mov .meta { font-size: .74rem; color: var(--gray-500); margin-top: .2rem; }
+    .pn-mov.anulado .l1 b, .pn-mov.anulado .its { text-decoration: line-through; color: var(--gray-400); }
+    .pn-vacio { text-align: center; color: var(--gray-500); font-size: .88rem; padding: 2rem 1rem; }
+    .pn-vacio .pn-sq { margin: 0 auto .6rem; width: 48px; height: 48px; border-radius: 14px; }
+    .pn-vacio .foc-btn { margin-top: .8rem; }
+
+    /* Selector de obras */
+    .pn-obras .menu-card { position: relative; }
+    .pn-obras .menu-card-sub { margin-top: -.55rem; }
+    .pn-rol { font-size: .68rem; font-weight: 700; border-radius: 999px; padding: .1rem .5rem; background: var(--gray-100); color: var(--gray-600); margin-top: -.5rem; }
+    .pn-rol--edit { background: #dff3e5; color: #1a7f3c; }
+    .pn-cfg-link { display: flex; justify-content: center; margin-top: 1.4rem; }
+    @media (max-width: 500px) { .pn-obras .menu-card-sub { display: block; } }
+
+    /* Diálogos */
+    .pn-dlg { max-width: 560px; }
+    .pn-dlg .form-group { margin-bottom: .7rem; }
+    .pn-dlg .form-group label { font-size: .72rem; }
+    .pn-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+    .pn-lines { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .5rem; }
+    .pn-line { display: grid; grid-template-columns: minmax(0, 1fr) 96px 30px; gap: .45rem; align-items: center; background: var(--gray-100); border-radius: 12px; padding: .45rem .5rem .45rem .7rem; }
+    .pn-line .nm { font-weight: 700; color: var(--primary-dark); font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pn-line .sub { font-size: .72rem; color: var(--gray-500); }
+    .pn-line .sub.warn { color: #b02a2a; font-weight: 700; }
+    .pn-line .nuevo { color: #1a7f3c; font-weight: 700; }
+    .pn-qty { display: flex; align-items: center; background: #fff; border: 1.5px solid var(--gray-300); border-radius: 10px; overflow: hidden; }
+    .pn-qty:focus-within { border-color: var(--primary-light); }
+    .pn-qty input { width: 100%; min-width: 0; border: 0; outline: 0; padding: .45rem .3rem .45rem .5rem; font: inherit; font-size: 16px; text-align: right; font-variant-numeric: tabular-nums; background: transparent; }
+    .pn-qty span { font-size: .72rem; color: var(--gray-500); padding-right: .45rem; white-space: nowrap; }
+    .pn-x { width: 30px; height: 30px; border-radius: 999px; border: none; background: transparent; color: var(--gray-400); display: grid; place-items: center; cursor: pointer; }
+    .pn-x:hover { background: #fde6e6; color: #b02a2a; }
+    .pn-x .icon { width: 14px; height: 14px; }
+    .pn-pick { position: relative; }
+    .pn-pick-res { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
+      box-shadow: 0 14px 34px -12px rgba(26,58,92,.45); max-height: 240px; overflow-y: auto; padding: .3rem; }
+    .pn-pick-res button { display: flex; align-items: center; gap: .5rem; width: 100%; border: 0; background: none; font: inherit; font-size: .86rem; text-align: left;
+      padding: .45rem .55rem; border-radius: 8px; cursor: pointer; color: var(--gray-700); }
+    .pn-pick-res button:hover, .pn-pick-res button.on { background: var(--gray-100); }
+    .pn-pick-res button b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary-dark); }
+    .pn-pick-res button small { color: var(--gray-500); font-size: .74rem; white-space: nowrap; }
+    .pn-pick-res .crear b { color: #1a7f3c; }
+    .pn-pick-res .icon { width: 14px; height: 14px; flex: none; }
+    .pn-nuevo { background: #f6fbf7; border: 1.5px solid #bfe3c9; border-radius: 12px; padding: .6rem .65rem .2rem; margin-bottom: .5rem; }
+    .pn-nuevo-t { font-size: .8rem; font-weight: 700; color: #1a7f3c; margin-bottom: .45rem; }
+    .pn-err { background: #fde6e6; color: #b02a2a; border-radius: 12px; padding: .55rem .7rem; font-size: .82rem; font-weight: 600; margin-top: .4rem; }
+    .pn-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .35rem .9rem; font-size: .86rem; margin: .2rem 0 .6rem; }
+    .pn-kv > span { color: var(--gray-500); }
+    .pn-kv > b { color: var(--gray-700); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+    .pn-big { display: flex; align-items: baseline; gap: .4rem; font-family: var(--font-num); }
+    .pn-big b { font-size: 2rem; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1; }
+    .pn-big.falta b { color: #b02a2a; }
+    .pn-hist { margin-top: .3rem; border-top: 1px solid var(--gray-100); }
+    .pn-hist > div { display: flex; gap: .55rem; align-items: center; padding: .42rem 0; border-bottom: 1px solid var(--gray-100); font-size: .82rem; }
+    .pn-hist .f { color: var(--gray-500); font-size: .74rem; white-space: nowrap; font-variant-numeric: tabular-nums; width: 3.3rem; }
+    .pn-hist .d { flex: 1; min-width: 0; color: var(--gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pn-hist .c { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .pn-hist .c.mas { color: #1a7f3c; } .pn-hist .c.menos { color: #8a4f0d; }
+    .pn-sec-t { font-size: .72rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .06em; margin: .8rem 0 .3rem; }
+    .pn-opts { display: flex; flex-direction: column; gap: .45rem; }
+    .pn-opt { display: grid; grid-template-columns: 38px minmax(0, 1fr) 20px; gap: .65rem; align-items: center; width: 100%; text-align: left;
+      border: 1.5px solid var(--gray-200); background: var(--white); border-radius: 14px; padding: .55rem .7rem; font: inherit; color: inherit; cursor: pointer; }
+    .pn-opt:hover { border-color: #c9d3e1; background: #fafbfd; }
+    .pn-opt[aria-pressed="true"] { border-color: var(--primary-light); background: #f3f7fd; }
+    .pn-opt b { display: block; font-size: .88rem; color: var(--primary-dark); }
+    .pn-opt small { display: block; font-size: .75rem; color: var(--gray-500); line-height: 1.3; }
+    .pn-opt .rad { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--gray-400); }
+    .pn-opt[aria-pressed="true"] .rad { border: 5px solid var(--primary-light); }
+    .pn-opt > .icon { width: 14px; height: 14px; color: var(--gray-400); }
+    .pn-users { max-height: 260px; overflow-y: auto; border: 1.5px solid var(--gray-200); border-radius: 12px; }
+    .pn-users label { display: flex; align-items: center; gap: .55rem; padding: .45rem .65rem; border-bottom: 1px solid var(--gray-100); font-size: .86rem; cursor: pointer; }
+    .pn-users label:last-child { border-bottom: none; }
+    .pn-users label small { margin-left: auto; color: var(--gray-400); font-size: .72rem; }
+    .pn-users input { width: 16px; height: 16px; accent-color: var(--primary-light); }
+    .pn-cfg-r { display: flex; align-items: center; gap: .6rem; padding: .6rem .75rem; border-bottom: 1px solid var(--gray-100); width: 100%; border-left: 0; border-right: 0; border-top: 0;
+      background: none; font: inherit; text-align: left; cursor: pointer; color: inherit; }
+    .pn-cfg-r:hover { background: #f7f9fc; }
+    .pn-cfg-r .mid { flex: 1; min-width: 0; }
+    .pn-cfg-r b { display: block; color: var(--primary-dark); font-size: .9rem; }
+    .pn-cfg-r small { display: block; color: var(--gray-500); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pn-cfg-r small.sin { color: #b02a2a; font-weight: 700; }
+    .pn-cfg-r > .icon { width: 14px; height: 14px; color: var(--gray-400); }
+    @media (max-width: 480px) {
+      .pn-row2 { grid-template-columns: 1fr; gap: 0; }
+      .pn-line { grid-template-columns: minmax(0, 1fr) 88px 30px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-brand u-pointer" id="hdr-brand">
+    <img src="assets/logo_claro.png" id="header-logo" alt="VIMECO" class="header-logo"
+      onerror="this.style.display='none';document.getElementById('header-logo-fb').style.display='inline'">
+    <span id="header-logo-fb" class="header-logo-fallback" style="display:none">VIMECO S.A.</span>
+    <span class="header-title">Pañol</span>
+  </div>
+  <div class="header-user">
+    <div class="user-badge"><span id="hdr-name">—</span></div>
+    <button class="btn btn-sm btn-outline btn-icon hidden" id="btn-back" aria-label="Volver a las obras" title="Volver a las obras"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <button class="btn btn-sm btn-outline" id="btn-logout">Salir</button>
+  </div>
+</header>
+
+<main class="app-main pn-main">
+  <div id="cargando" class="hist-loading">Cargando…</div>
+
+  <!-- Elegir obra (si la persona tiene más de una) -->
+  <section id="vista-obras" class="hidden">
+    <div class="menu-hello">
+      <h1><span id="saludo">Hola</span>, <span id="nombre">—</span></h1>
+      <p>Elegí el pañol de la obra</p>
+    </div>
+    <div class="menu-grid menu-grid--tiles pn-obras" id="obras-grid"></div>
+    <div class="pn-cfg-link hidden" id="cfg-link">
+      <button type="button" class="foc-btn foc-btn--clear" id="btn-cfg"></button>
+    </div>
+  </section>
+
+  <!-- Pañol de una obra -->
+  <section id="vista-obra" class="hidden">
+    <div class="pn-ttl">
+      <h1 class="pn-t" id="obra-nombre"></h1>
+      <span class="pn-cnt" id="cnt-arts"></span>
+      <button type="button" class="pn-cnt pn-cnt--falta hidden" id="cnt-falta"></button>
+      <span class="pn-cnt pn-cnt--ro hidden" id="cnt-ro"></span>
+      <div class="pn-push">
+        <button type="button" class="foc-btn foc-btn--pdf" id="btn-exportar"></button>
+      </div>
+    </div>
+
+    <div class="pn-acts hidden" id="acciones">
+      <button type="button" class="pn-act pn-act--in" data-acc="ingreso"><span class="pn-sq" data-ic="in"></span><span><b>Ingreso</b><small>Llegó material a la obra</small></span></button>
+      <button type="button" class="pn-act pn-act--out" data-acc="salida"><span class="pn-sq" data-ic="out"></span><span><b>Salida</b><small>Se entregó o se consumió</small></span></button>
+      <button type="button" class="pn-act pn-act--mas" data-acc="mas"><span class="pn-sq" data-ic="more"></span><b>Más</b></button>
+    </div>
+
+    <div class="pn-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="stock" aria-selected="true"></button>
+      <button type="button" role="tab" data-tab="movs" aria-selected="false"></button>
+    </div>
+
+    <div id="tab-stock">
+      <div class="pn-srch">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="buscar" placeholder="Buscar material…" autocomplete="off" aria-label="Buscar material">
+      </div>
+      <div class="pn-flt">
+        <div class="pn-seg" id="seg-stock" role="group" aria-label="Mostrar">
+          <button type="button" data-f="todos" aria-pressed="true">Todos</button>
+          <button type="button" data-f="falta" aria-pressed="false">Faltantes</button>
+        </div>
+        <div class="pn-cats" id="cats"></div>
+      </div>
+      <div id="lista-stock"></div>
+    </div>
+
+    <div id="tab-movs" class="hidden">
+      <div class="pn-flt">
+        <div class="pn-mes">
+          <button type="button" class="pn-ib" id="mes-prev" aria-label="Mes anterior"></button>
+          <b id="mes-lbl"></b>
+          <button type="button" class="pn-ib" id="mes-next" aria-label="Mes siguiente"></button>
+        </div>
+        <div class="pn-seg" id="seg-movs" role="group" aria-label="Tipo">
+          <button type="button" data-f="todos" aria-pressed="true">Todos</button>
+          <button type="button" data-f="ingreso" aria-pressed="false">Ingresos</button>
+          <button type="button" data-f="salida" aria-pressed="false">Salidas</button>
+          <button type="button" data-f="otros" aria-pressed="false">Otros</button>
+        </div>
+      </div>
+      <div id="lista-movs"></div>
+    </div>
+  </section>
+</main>
+
+<!-- Diálogo genérico: lo arma js/panol.js -->
+<div class="modal-overlay hidden" id="dlg-ov">
+  <div class="eq-dlg pn-dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-t"></div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script src="js/icons.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/config.js"></script>
+<script src="js/datos.js"></script>
+<script src="js/panolExport.js"></script>
+<script src="js/panol.js"></script>
+</body>
+</html>
