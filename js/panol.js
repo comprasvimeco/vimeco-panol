@@ -72,6 +72,8 @@ let arts = [], movs = [];
 let personal = [];       // quienes retiraron en esta obra (para sugerir en "Retira")
 let puede = false;       // carga movimientos
 let dejarDeEscuchar = null;  // corta la escucha en vivo de la obra abierta
+let servidor = null;     // lo último que mandó el servidor de la obra abierta (sin lo pendiente)
+let sinRed = !navigator.onLine;
 const vista = { tab: 'stock', q: '', modo: 'todos', cat: '', mes: mesDe(hoyISO()), fMov: 'todos' };
 
 // ─── Arranque ───────────────────────────────────────
@@ -101,11 +103,19 @@ async function iniciar() {
   $('cargando').textContent = 'Cargando…';
   try {
     alc = await alcancePanol(yo.codigo);
+    marcarRed(true);
+    guardarLocal('alc:' + yo.codigo, alc);
   } catch (err) {
+    // Sin señal: las obras como estaban la última vez.
+    if (err.sinRed) { marcarRed(false); alc = await leerLocal('alc:' + yo.codigo); }
+  }
+  if (!alc) {
     $('cargando').innerHTML = `No se pudo cargar. Revisá la conexión.<br><button type="button" class="foc-btn foc-btn--edit" style="margin-top:.8rem" id="reint">${icSvg('rotate')}Reintentar</button>`;
     $('reint').onclick = iniciar;
     return;
   }
+  alCambiarCola(() => { pintarRed(); if (obra && servidor) ponerDatos(); });
+  pintarRed();
   if (!alc.obras.length && !alc.admin) {
     $('cargando').innerHTML = `<div class="pn-vacio"><span class="pn-sq t-gr">${icSvg('lock')}</span>
       <b>Todavía no tenés ningún pañol asignado.</b><br>Pedile a quien administra que te anote como pañolero de una obra
@@ -160,7 +170,21 @@ async function pintarObras() {
   if (alc.admin && !alc.usuarios) {
     try { alc.usuarios = await getAllUsuarios(); } catch (_) { alc.usuarios = []; }
   }
-  try { pintar(await getResumenPanoles(alc.obras.map(o => o.key))); } catch (_) { pintar({}); }
+  pintar(await resumenObras());
+}
+
+// Materiales y faltantes de cada obra; sin señal, de lo que quedó guardado en el teléfono.
+async function resumenObras() {
+  const keys = alc.obras.map(o => o.key);
+  let res = {};
+  try { res = await getResumenPanoles(keys); } catch (_) {}
+  await Promise.all(keys.filter(k => !res[k]).map(async k => {
+    const p = await leerLocal('panol:' + k);
+    if (!p) return;
+    const act = aplicarPendientes(p, colaPendiente(k)).articulos.filter(a => a.activo);
+    res[k] = { articulos: act.length, faltan: act.filter(falta).length };
+  }));
+  return res;
 }
 
 // ─── Una obra ───────────────────────────────────────
@@ -175,17 +199,31 @@ async function abrirObra(key, silencioso) {
   puede = o.rol === 'panolero' || o.rol === 'ver' || o.rol === 'admin';
   $('btn-back').classList.toggle('hidden', alc.obras.length === 1 && !alc.admin);
   if (!silencioso) { mostrar('cargando'); $('cargando').textContent = 'Cargando el pañol de ' + o.nombre + '…'; }
+  let p = null;
   try {
-    ({ articulos: arts, movimientos: movs, personal } = await getPanol(key));
+    p = await getPanol(key);
+    marcarRed(true);
+    guardarLocal('panol:' + key, p);
   } catch (err) {
+    if (err.sinRed) { marcarRed(false); p = await leerLocal('panol:' + key); }
+  }
+  if (!p) {
     mostrar('cargando');
     $('cargando').innerHTML = `No se pudo cargar el pañol. Revisá la conexión.<br><button type="button" class="foc-btn foc-btn--edit" style="margin-top:.8rem" id="reint">${icSvg('rotate')}Reintentar</button>`;
     $('reint').onclick = () => abrirObra(key);
     return;
   }
+  servidor = p;
+  await colaLista;
   mostrar('vista-obra');
-  pintarObra();
+  ponerDatos();
   if (!silencioso || !dejarDeEscuchar) escuchar(key);
+}
+
+// Lo del servidor más lo cargado sin señal que todavía no subió.
+function ponerDatos() {
+  ({ articulos: arts, movimientos: movs, personal } = aplicarPendientes(servidor, colaPendiente(obra.key)));
+  pintarObra();
 }
 
 const recargar = () => abrirObra(obra.key, true);
@@ -195,11 +233,58 @@ function escuchar(key) {
   if (dejarDeEscuchar) { dejarDeEscuchar(); dejarDeEscuchar = null; }
   if (!key || typeof EventSource === 'undefined') return;
   dejarDeEscuchar = escucharPanol(key, p => {
+    guardarLocal('panol:' + key, p);
     if (!obra || obra.key !== key) return;
-    ({ articulos: arts, movimientos: movs, personal } = p);
-    pintarObra();
-  });
+    servidor = p;
+    ponerDatos();
+  }, marcarRed);
 }
+
+// ─── Señal ──────────────────────────────────────────
+function marcarRed(hay) {
+  const antes = sinRed;
+  sinRed = !hay;
+  if (hay && colaPendiente().length) sincronizar().then(n => { if (n && obra) recargar(); });
+  if (antes !== sinRed) pintarRed();
+}
+window.addEventListener('offline', () => marcarRed(false));
+window.addEventListener('online', () => marcarRed(true));
+
+// Aviso arriba: sin señal, y/o cuántos movimientos quedan por subir.
+function pintarRed() {
+  const cola = colaPendiente(), conError = cola.filter(q => q.error).length;
+  const n = cola.length;
+  const pend = n ? `${n === 1 ? 'Un movimiento quedó' : n + ' movimientos quedaron'} en el teléfono` : '';
+  let html = '';
+  if (sinRed) html = `${icSvg('wifi0')}<span><b>Sin señal.</b> ${n ? pend + ': se suben solos cuando vuelva.' : 'Ves lo último que se cargó; lo que cargues se sube cuando vuelva.'}</span>`;
+  else if (conError) html = `${icSvg('alert')}<span><b>${conError === 1 ? 'Un movimiento no se pudo subir' : conError + ' movimientos no se pudieron subir'}.</b> Abrilo en Movimientos para ver por qué.</span>`;
+  else if (n) html = `<span class="spinner"></span><span>Subiendo ${n === 1 ? 'un movimiento cargado' : n + ' movimientos cargados'} sin señal…</span>`;
+  $('red-aviso').innerHTML = html;
+  $('red-aviso').classList.toggle('hidden', !html);
+  $('red-aviso').classList.toggle('pn-red--err', !sinRed && !!conError);
+}
+
+/* Graba un ingreso, salida o ajuste. Sin señal (o si se corta a mitad) queda en el
+   teléfono y se sube solo después: en ese caso devuelve false. */
+async function guardarMovimiento(mov, fotos) {
+  mov.items = mov.items.map(it => {
+    // Material nuevo: la clave se elige acá, así un movimiento posterior sin señal lo encuentra.
+    if (it.nuevo && !it.id) return { ...it, id: nuevaClave() };
+    // Material creado sin señal que todavía no subió: va con sus datos, por si hay que darlo de alta.
+    const a = it.id && arts.find(x => x.id === it.id);
+    if (a && a.sinSubir) return { ...it, nuevo: { nombre: a.nombre, unidad: a.unidad, categoria: a.categoria, minimo: a.minimo } };
+    return it;
+  });
+  const q = { id: nuevaClave(), ts: Date.now(), obraKey: obra.key, obraNombre: obra.nombre, mov, fotos: fotos || [] };
+  if (!sinRed || navigator.onLine) {
+    try { await registrarMovimiento(q.obraKey, mov, q); marcarRed(true); return true; }
+    catch (e) { if (!e.sinRed) throw e; marcarRed(false); }
+  }
+  await encolar(q);
+  return false;
+}
+const avisoGuardado = (subido, txt) => subido ? showToast(txt, 'success')
+  : showToast('Sin señal: quedó guardado en el teléfono y se sube solo cuando vuelva', 'warning');
 
 // El celular corta la conexión cuando la app queda en segundo plano: al volver, se reabre.
 document.addEventListener('visibilitychange', () => {
@@ -302,6 +387,10 @@ function itemsTxt(m, max = 4) {
   return txt + (its.length > max ? ` · y ${its.length - max} más` : '');
 }
 
+const tagPendiente = m => !m.pendiente ? ''
+  : m.pendiente === 'error' ? `<span class="pn-tag pn-tag--falta">${icSvg('alert')}No se subió</span>`
+  : `<span class="pn-tag pn-tag--pend">${icSvg('clock')}Sin subir</span>`;
+
 function pintarMovs() {
   $('mes-lbl').textContent = nombreMes(vista.mes);
   $('mes-next').disabled = vista.mes >= mesDe(hoyISO());
@@ -319,7 +408,7 @@ function pintarMovs() {
     html += `<button type="button" class="pn-mov${m.anulado ? ' anulado' : ''}" data-mov="${esc(m.id)}">
       <span class="pn-sq ${T.tone}">${icSvg(T.ic)}</span>
       <span class="mid">
-        <span class="l1"><b>${esc(tituloMov(m))}</b>${m.anulado ? '<span class="pn-tag pn-tag--baja">Anulado</span>' : ''}<span class="hr">${hora(m.ts)}</span></span>
+        <span class="l1"><b>${esc(tituloMov(m))}</b>${m.anulado ? '<span class="pn-tag pn-tag--baja">Anulado</span>' : ''}${tagPendiente(m)}${m.fotos ? `<span class="pn-cam" title="Tiene foto del remito">${icSvg('camera')}</span>` : ''}<span class="hr">${hora(m.ts)}</span></span>
         <span class="its" style="display:block">${itemsTxt(m)}</span>
         <span class="meta" style="display:block">${esc(metaMov(m).join(' · '))}</span>
       </span></button>`;
@@ -463,10 +552,10 @@ function fichaArticulo(a) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Guardando…';
     try {
-      await registrarMovimiento(obra.key, { tipo: 'ajuste', fecha: hoyISO(), por: yo, items: [{ id: a.id, contado: n }] });
-      showToast(`${a.nombre}: ${fmtN(n)} ${a.unidad || 'u'}`, 'success');
+      const subido = await guardarMovimiento({ tipo: 'ajuste', fecha: hoyISO(), por: yo, items: [{ id: a.id, contado: n }] });
+      avisoGuardado(subido, `${a.nombre}: ${fmtN(n)} ${a.unidad || 'u'}`);
       cerrarDlg();
-      recargar();
+      if (subido) recargar();
     } catch (e) {
       const er = $('fa-aj-err');
       er.textContent = 'No se pudo guardar: ' + e.message + '. Revisá la conexión y probá de nuevo.';
@@ -611,7 +700,8 @@ async function formMovimiento(tipo, artInicial) {
   let extra = '';
   if (tipo === 'ingreso') extra = `<div class="pn-row2">
       <div class="form-group"><label for="fm-prov">Proveedor / de dónde viene</label><input id="fm-prov" class="form-control" list="dl-prov" autocomplete="off">${datalist('dl-prov', usados('proveedor'))}</div>
-      <div class="form-group"><label for="fm-rem">Remito Nº</label><input id="fm-rem" class="form-control" autocomplete="off" placeholder="Opcional"></div></div>`;
+      <div class="form-group"><label for="fm-rem">Remito Nº</label><input id="fm-rem" class="form-control" autocomplete="off" placeholder="Opcional"></div></div>
+      <div class="form-group"><label>Foto del remito</label><div class="pn-fotos" id="fm-fotos"></div></div>`;
   if (tipo === 'salida') extra = `<div class="pn-row2">
       <div class="form-group"><label for="fm-ret">Retira</label><input id="fm-ret" class="form-control" list="dl-ret" autocomplete="off" placeholder="Quién se lo lleva">${datalist('dl-ret', personal)}</div>
       <div class="form-group"><label for="fm-dest">Para qué / dónde</label><input id="fm-dest" class="form-control" list="dl-dest" autocomplete="off" placeholder="Ej: Frente norte, cordón cuneta">${datalist('dl-dest', usados('destino'))}</div></div>`;
@@ -640,6 +730,8 @@ async function formMovimiento(tipo, artInicial) {
 
   const err = m => { $('fm-err').textContent = m; $('fm-err').classList.toggle('hidden', !m); };
   const artDe = id => arts.find(a => a.id === id);
+  const fotos = [];
+  if (tipo === 'ingreso') editorFotos($('fm-fotos'), fotos, err);
 
   // Renglón de ayuda debajo del nombre: cuánto hay, y si la salida deja negativo.
   function subDe(l) {
@@ -788,6 +880,7 @@ async function formMovimiento(tipo, artInicial) {
     const btn = $('fm-ok');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Guardando…';
+    let subido = true;
     try {
       if (tipo === 'traspaso') {
         await registrarTraspaso({ key: obra.key, nombre: obra.nombre }, destino, { fecha, por: yo, nota, items });
@@ -807,23 +900,109 @@ async function formMovimiento(tipo, artInicial) {
           if (r) mov.retira = r;
           if (d) mov.destino = d;
         }
-        await registrarMovimiento(obra.key, mov);
+        subido = await guardarMovimiento(mov, fotos);
       }
-      showToast(tipo === 'traspaso' ? `Pasado a ${destino.nombre}` : `${F.t} guardado`, 'success');
+      avisoGuardado(subido, tipo === 'traspaso' ? `Pasado a ${destino.nombre}` : `${F.t} guardado`);
       cerrarDlg();
-      recargar();
+      if (subido) recargar();
     } catch (e) {
-      err('No se pudo guardar: ' + e.message + '. Revisá la conexión y probá de nuevo.');
+      err(tipo === 'traspaso' && e.sinRed ? 'Sin señal: pasar a otra obra necesita conexión. Probá cuando vuelva.'
+        : 'No se pudo guardar: ' + e.message + '. Revisá la conexión y probá de nuevo.');
       btn.disabled = false;
       btn.innerHTML = icSvg('checkSm') + F.boton;
     }
   };
 }
 
+// ─── Fotos del remito ───────────────────────────────
+const MAX_FOTOS = 3;
+
+// Se achica en el teléfono antes de guardarla (lado mayor 1600 px, JPEG): unos 200 KB.
+async function achicarFoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, mal) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => mal(new Error('No se pudo leer la foto'));
+      i.src = url;
+    });
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.7);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+const miniFoto = (src, i, quitar) => `<span class="pn-foto"><img src="${src}" alt="Foto ${i + 1} del remito" data-ver="${i}">${quitar
+  ? `<button type="button" class="pn-x" data-quitar-foto="${i}" aria-label="Quitar foto">${icSvg('x')}</button>` : ''}</span>`;
+const botonFoto = () => `<label class="pn-foto pn-foto--add">${icSvg('camera')}<span>Agregar</span>
+  <input type="file" accept="image/*" hidden></label>`;
+
+// Fotos de un formulario: se eligen, se ven y se quitan antes de guardar.
+function editorFotos(cont, fotos, err) {
+  const pintar = () => {
+    cont.innerHTML = fotos.map((f, i) => miniFoto(f, i, true)).join('') + (fotos.length < MAX_FOTOS ? botonFoto() : '');
+  };
+  cont.addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    try { fotos.push(await achicarFoto(file)); } catch (x) { err(x.message); }
+    pintar();
+  });
+  cont.addEventListener('click', e => {
+    const q = e.target.closest('[data-quitar-foto]');
+    if (q) { fotos.splice(+q.dataset.quitarFoto, 1); pintar(); return; }
+    const v = e.target.closest('[data-ver]');
+    if (v) verImagen(fotos[+v.dataset.ver]);
+  });
+  pintar();
+}
+
+// Fotos en la ficha de un movimiento: se bajan recién al abrirla.
+async function fotosDeMovimiento(m, q, puedeAgregar) {
+  const cont = $('fmv-fotos');
+  let fotos = [];
+  if (m.fotos) {
+    try { fotos = q ? q.fotos : await getFotos(obra.key, m.id); }
+    catch (e) { if (cont.isConnected) cont.innerHTML = `<span class="pn-foto-cargando">${e.sinRed ? 'Sin señal: la foto se ve cuando vuelva.' : 'No se pudo bajar la foto.'}</span>`; return; }
+  }
+  if (!cont.isConnected) return;
+  const pintar = () => {
+    cont.innerHTML = fotos.map((f, i) => miniFoto(f, i, false)).join('') + (puedeAgregar && fotos.length < MAX_FOTOS ? botonFoto() : '');
+  };
+  cont.addEventListener('click', e => {
+    const v = e.target.closest('[data-ver]');
+    if (v) verImagen(fotos[+v.dataset.ver]);
+  });
+  cont.addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    try {
+      const f = await achicarFoto(file);
+      await agregarFotos(obra.key, m.id, fotos.length, [f]);
+      fotos.push(f);
+      m.fotos = fotos.length;
+      showToast('Foto agregada', 'success');
+    } catch (x) {
+      showToast(x.sinRed ? 'Sin señal: la foto se puede agregar cuando vuelva' : 'No se pudo guardar la foto: ' + x.message, 'error');
+    }
+    if (cont.isConnected) pintar();
+  });
+  pintar();
+}
+
 // ─── Ficha de un movimiento ─────────────────────────
 function fichaMovimiento(m) {
   if (!m) return;
   const T = TIPOS[m.tipo];
+  const q = m.pendiente ? colaPendiente(obra.key).find(x => x.id === m.id) : null;
+  // A un ingreso ya subido se le puede sumar la foto del remito después (llega más tarde, se olvidó).
+  const puedeFoto = puede && m.tipo === 'ingreso' && !m.pendiente && !m.anulado && (m.fotos || 0) < MAX_FOTOS;
   const kv = [['Fecha', fechaLarga(m.fecha) + (m.ts ? ' · cargado ' + new Date(m.ts).toLocaleDateString('es-AR') + ' ' + hora(m.ts) : '')]];
   if (m.proveedor) kv.push(['Proveedor', m.proveedor]);
   if (m.remito) kv.push(['Remito', m.remito]);
@@ -839,8 +1018,21 @@ function fichaMovimiento(m) {
       <div class="pn-sec-t">Materiales</div>
       <div class="pn-hist">${m.items.map(it => `<div><span class="d" style="color:var(--gray-700)">${esc(it.nombre)}${m.tipo === 'ajuste' ? ` <small style="color:var(--gray-500)">(había ${fmtN(it.antes)}, se contó ${fmtN(it.contado)})</small>` : ''}</span>
         <span class="c ${m.tipo === 'ajuste' ? (it.cant >= 0 ? 'mas' : 'menos') : T.signo > 0 ? 'mas' : 'menos'}">${m.tipo === 'ajuste' ? fmtSig(it.cant) : fmtSig(T.signo * it.cant)} ${esc(it.unidad || '')}</span></div>`).join('')}</div>
-      ${puede && !m.anulado ? `<div class="eq-dlg-f"><button type="button" class="foc-btn foc-btn--del" id="fmv-anular">${icSvg('undo')}Anular movimiento</button></div>` : ''}`
+      ${m.fotos || puedeFoto ? `<div class="pn-sec-t">Foto del remito</div><div class="pn-fotos" id="fmv-fotos">${m.fotos ? '<span class="pn-foto-cargando"><span class="spinner"></span></span>' : ''}</div>` : ''}
+      ${m.pendiente ? `<div class="pn-err${m.pendiente === 'error' ? '' : ' pn-err--info'}">${m.pendiente === 'error'
+          ? 'No se pudo subir: ' + esc(q && q.error || '') + '. Si no hace falta, descartalo; si no, avisá a quien administra.'
+          : 'Se cargó sin señal y todavía no subió: se sube solo cuando vuelva la conexión.'}</div>
+        <div class="eq-dlg-f"><button type="button" class="foc-btn foc-btn--del" id="fmv-desc">${icSvg('trash')}Descartar</button></div>`
+      : puede && !m.anulado ? `<div class="eq-dlg-f"><button type="button" class="foc-btn foc-btn--del" id="fmv-anular">${icSvg('undo')}Anular movimiento</button></div>` : ''}`
   });
+  if (m.fotos || puedeFoto) fotosDeMovimiento(m, q, puedeFoto);
+  const bd = d.querySelector('#fmv-desc');
+  if (bd) bd.onclick = async () => {
+    if (!await showConfirm('Descartar movimiento', 'Se borra del teléfono sin subirse y el stock vuelve a como estaba.', { boton: 'Descartar', tono: 'del', icono: 'trash' })) return;
+    await descartarPendiente(m.id);
+    showToast('Movimiento descartado', 'success');
+    cerrarDlg();
+  };
   const b = d.querySelector('#fmv-anular');
   if (b) b.onclick = async () => {
     const msg = m.otraObra ? `Se anula también en ${m.otraObra.nombre} y el stock vuelve como estaba en las dos obras.` : 'El stock vuelve a como estaba antes de este movimiento. Queda tachado en la lista.';

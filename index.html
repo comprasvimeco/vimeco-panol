@@ -198,6 +198,7 @@
   <script src="js/datos.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/install.js"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
   <script>
     initInstalar(document.getElementById('lg-inst'),
       document.getElementById('lg-inst-si'), document.getElementById('lg-inst-no'));

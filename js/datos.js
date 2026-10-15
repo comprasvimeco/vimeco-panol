@@ -13,7 +13,8 @@
          fecha 'YYYY-MM-DD', ts, por {codigo, nombre}
          items [{ id, nombre, unidad, cant }]   (cant > 0; en ajuste: antes, contado y cant = diferencia)
          proveedor, remito (ingreso) · retira, destino (salida) · otraObra {key, nombre}, ref (traspaso)
-         nota, anulado {por, ts}
+         nota, anulado {por, ts}, fotos (cuántas fotos del remito tiene)
+     /panol_fotos/{obraKey}/{movId}/{n}  foto JPEG como data URL (aparte: no se baja al abrir la obra)
 
    El stock de cada artículo se guarda en el artículo y se mueve en la misma
    escritura que el movimiento (PATCH multi-ruta: o se graba todo o nada). */
@@ -21,26 +22,29 @@
 (function () {
   const base = () => FIREBASE_CONFIG.databaseURL;
 
-  async function _req(path, opts) {
-    const resp = await _fetchConTope(base() + path, opts);
+  async function _req(path, opts, ms) {
+    const resp = await _fetchConTope(base() + path, opts, ms);
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
       throw new Error(`HTTP ${resp.status} ${body.substring(0, 120)}`.trim());
     }
     return resp.json();
   }
-  const _get   = path => _req(path);
-  const _patch = (path, data) => _req(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-  const _put   = (path, data) => _req(path, { method: 'PUT',   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const _get   = (path, ms) => _req(path, undefined, ms);
+  const _patch = (path, data, ms) => _req(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, ms);
+  const _put   = (path, data, ms) => _req(path, { method: 'PUT',   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, ms);
 
-  // Un cuelgue de red se vuelve error.
+  // Un cuelgue de red se vuelve error. Los errores de red (no los del servidor) llevan
+  // `sinRed`: con esos, lo que se estaba grabando queda en la cola (offline.js).
   window._fetchConTope = function (url, opts, ms = 20000) {
     const ctrl = new AbortController();
     const to   = setTimeout(() => ctrl.abort(), ms);
     return fetch(url, { ...(opts || {}), signal: ctrl.signal })
       .catch(err => {
-        if (err && err.name === 'AbortError') throw new Error(`Sin respuesta tras ${Math.round(ms / 1000)}s`);
-        throw err;
+        const e = err && err.name === 'AbortError' ? new Error(`Sin respuesta tras ${Math.round(ms / 1000)}s`)
+          : err instanceof Error ? err : new Error(String(err));
+        e.sinRed = true;
+        throw e;
       })
       .finally(() => clearTimeout(to));
   };
@@ -119,6 +123,8 @@
     return _armarPanol((await _get('/panol/' + obraKey + '.json')) || {});
   };
 
+  const _masNuevoPrimero = (a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.ts || 0) - (a.ts || 0);
+
   function _armarPanol(data) {
     const articulos = Object.entries(data.articulos || {})
       .filter(([, a]) => a && a.nombre)
@@ -126,7 +132,7 @@
     const movimientos = Object.entries(data.movimientos || {})
       .filter(([, m]) => m && m.tipo)
       .map(([id, m]) => ({ id, ...m, items: Array.isArray(m.items) ? m.items : Object.values(m.items || {}) }))
-      .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.ts || 0) - (a.ts || 0));
+      .sort(_masNuevoPrimero);
     // Quienes retiraron alguna vez, el más reciente primero.
     const personal = Object.values(data.personal || {})
       .filter(p => p && p.nombre)
@@ -137,9 +143,10 @@
 
   /* En vivo: escucha /panol/{obraKey} con el streaming de RTDB por REST (EventSource)
      y llama a alCambiar({articulos, movimientos, personal}) cada vez que alguien
-     graba algo. Devuelve la función para dejar de escuchar. Si se corta, EventSource
-     reconecta solo y el servidor vuelve a mandar todo. */
-  window.escucharPanol = function (obraKey, alCambiar) {
+     graba algo; alEstado(true/false) cuando llegan datos o se corta. Devuelve la
+     función para dejar de escuchar. Si se corta, EventSource reconecta solo y el
+     servidor vuelve a mandar todo. */
+  window.escucharPanol = function (obraKey, alCambiar, alEstado = () => {}) {
     let raw = {}, timer = null;
     const es = new EventSource(base() + '/panol/' + obraKey + '.json');
     const poner = (path, val) => {
@@ -158,13 +165,14 @@
     const leer = ev => { try { return JSON.parse(ev.data); } catch (_) { return null; } };
     es.addEventListener('put', ev => {
       const d = leer(ev); if (!d) return;
-      poner(d.path, d.data); avisar();
+      poner(d.path, d.data); avisar(); alEstado(true);
     });
     es.addEventListener('patch', ev => {
       const d = leer(ev); if (!d || !d.data) return;
       Object.entries(d.data).forEach(([k, v]) => poner(d.path.replace(/\/$/, '') + '/' + k, v));
-      avisar();
+      avisar(); alEstado(true);
     });
+    es.addEventListener('error', () => alEstado(false));
     return () => { clearTimeout(timer); es.close(); };
   };
 
@@ -207,7 +215,9 @@
       let id = it.id;
       if (!id || !arts[id]) {
         const n = it.nuevo || it;
-        id = nuevaClave();
+        if (!n.nombre) throw new Error('Falta un material que se cargó sin señal');
+        // Un material nuevo cargado sin señal ya trae su clave: así lo encuentran los movimientos de después.
+        id = id || nuevaClave();
         arts[id] = { nombre: n.nombre, unidad: n.unidad || 'u', categoria: n.categoria || 'Varios' };
         updates[pref + id] = { nombre: n.nombre.trim(), unidad: n.unidad || 'u', categoria: n.categoria || 'Varios',
                                minimo: r3(n.minimo), stock: 0, activo: true, creadoEn: Date.now() };
@@ -230,17 +240,62 @@
     });
   }
 
-  // Ingreso, salida o ajuste en una obra.
-  window.registrarMovimiento = async function (obraKey, mov) {
+  /* Ingreso, salida o ajuste en una obra. `op` (opcional): id y ts ya elegidos, fotos
+     [dataURL] del remito y `reintento` cuando se sube desde la cola: si el movimiento
+     ya está (se grabó y se cortó antes de la respuesta) no se graba dos veces. */
+  window.registrarMovimiento = async function (obraKey, mov, op = {}) {
+    const id = op.id || nuevaClave();
+    if (op.reintento && (await _get(`/panol/${obraKey}/movimientos/${id}.json?shallow=true`)) !== null) return id;
+    // Las fotos van antes: si después falla el movimiento, al reintentar se pisan con las mismas.
+    if (op.fotos && op.fotos.length) {
+      await _put(`/panol_fotos/${obraKey}/${id}.json`, op.fotos, 90000);
+      mov = { ...mov, fotos: op.fotos.length };
+    }
     const arts = (await _get(`/panol/${obraKey}/articulos.json`)) || {};
     const updates = {};
-    const id = nuevaClave();
     const items = _aplicar(updates, obraKey, arts, mov.tipo, mov.items);
-    const ts = Date.now();
+    const ts = op.ts || Date.now();
     updates[`${obraKey}/movimientos/${id}`] = { ...mov, items, ts };
     if (mov.retira) updates[`${obraKey}/personal/${claveDe(mov.retira)}`] = { nombre: mov.retira, ts };
     await _patch('/panol.json', updates);
     return id;
+  };
+
+  // Fotos del remito de un movimiento.
+  window.getFotos = async function (obraKey, movId) {
+    const d = await _get(`/panol_fotos/${obraKey}/${movId}.json`, 60000);
+    return (Array.isArray(d) ? d : Object.values(d || {})).filter(Boolean);
+  };
+  window.agregarFotos = async function (obraKey, movId, previas, nuevas) {
+    const upd = {};
+    nuevas.forEach((f, i) => { upd[previas + i] = f; });
+    await _patch(`/panol_fotos/${obraKey}/${movId}.json`, upd, 90000);
+    await _patch(`/panol/${obraKey}/movimientos/${movId}.json`, { fotos: previas + nuevas.length });
+  };
+
+  /* Lo cargado sin señal (la cola de offline.js) aplicado sobre lo último que mandó el
+     servidor: el stock ya lo cuenta y esos movimientos quedan marcados `pendiente`.
+     Los que el servidor ya tiene se saltean. */
+  window.aplicarPendientes = function (p, cola) {
+    const ya = new Set(p.movimientos.map(m => m.id));
+    cola = cola.filter(q => !ya.has(q.id));
+    if (!cola.length) return p;
+    const raw = {};
+    p.articulos.forEach(a => { raw[a.id] = { ...a }; });
+    const nuevos = [], personal = [...p.personal];
+    cola.forEach(q => {
+      const upd = {};
+      let items;
+      try { items = _aplicar(upd, '', raw, q.mov.tipo, q.mov.items); } catch (_) { return; }
+      Object.entries(upd).forEach(([k, v]) => {
+        const [, , id, campo] = k.split('/');          // '/articulos/{id}' o '/articulos/{id}/stock'
+        if (campo) raw[id].stock = v; else raw[id] = { id, ...v, sinSubir: true };
+      });
+      nuevos.push({ ...q.mov, id: q.id, ts: q.ts, items, fotos: (q.fotos || []).length || undefined,
+                    pendiente: q.error ? 'error' : true });
+      if (q.mov.retira && !personal.some(n => normTxt(n) === normTxt(q.mov.retira))) personal.unshift(q.mov.retira);
+    });
+    return { articulos: Object.values(raw), movimientos: [...nuevos, ...p.movimientos].sort(_masNuevoPrimero), personal };
   };
 
   // Pasar materiales de una obra a otra: salida acá, ingreso allá, en una sola escritura.

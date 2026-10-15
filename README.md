@@ -5,6 +5,10 @@ Stock y movimientos del pañol de cada obra de VIMECO S.A. PWA estática (HTML/C
 - **Ingreso / Salida / Ajuste / Pasar a otra obra**, con anulación que devuelve el stock.
 - **Faltantes**: cada material tiene un mínimo; lo que está por debajo se marca en rojo.
 - **Exportar** stock, faltantes o movimientos del mes en PDF o Excel (en el celular se comparte por WhatsApp).
+- **En vivo**: lo que carga otro aparece sin refrescar.
+- **Sin señal**: la app abre con lo último que se vio; ingresos, salidas y ajustes quedan en el teléfono
+  y se suben solos cuando vuelve la conexión.
+- **Foto del remito** en los ingresos (hasta 3; también se puede agregar después desde el movimiento).
 
 ## Datos y permisos
 

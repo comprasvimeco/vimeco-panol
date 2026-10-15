@@ -9,6 +9,9 @@ tal cual** (https://comprasvimeco.github.io/vimeco-panol/): un push a `main` es 
 No hay número de versión ni hook de commits (a diferencia de VIMECO OC).
 
 - Los `<script>` no llevan `?v=`: Pages cachea ~10 min, así que un cambio puede tardar en verse.
+- `sw.js` (service worker) guarda la app para abrir sin señal; prueba la red primero, así que no
+  frena los deploys. **Un archivo nuevo de la app se suma a `ARCHIVOS` en `sw.js`** (si falta uno, no
+  se instala).
 - Antes de commitear, chequear sintaxis: `node --check js/panol.js` (y el archivo que se haya tocado).
 - Mensajes de commit en castellano, cortos, describiendo lo que cambia para el usuario.
 
@@ -19,6 +22,8 @@ No hay número de versión ni hook de commits (a diferencia de VIMECO OC).
 | `index.html` + `js/auth.js` | Ingreso: elegir usuario y contraseña (la crea la primera vez). Sesión en `localStorage.vimeco_session`. |
 | `panol.html` + `js/panol.js` | Toda la app: selector de obras, stock, movimientos, diálogos, obras/permisos y usuarios. |
 | `js/datos.js` | Acceso a Firebase RTDB **por REST, sin SDK**. El esquema de la base está documentado arriba de todo. |
+| `js/offline.js` | Sin señal: copia local de cada obra (IndexedDB) y cola de movimientos que se suben solos al volver la señal. |
+| `sw.js` | Service worker: la app abre sin señal. |
 | `js/panolExport.js` | PDF (jsPDF) y Excel (`xlsx-js-style`, se baja de jsDelivr al exportar). |
 | `js/config.js` | Config de Firebase, proyecto **`vimeco-panol`** (base propia, separada de VIMECO OC). |
 | `css/styles.css` | Copia de la hoja de VIMECO OC (tokens, header, botones `foc-btn`, `eq-dlg`, toasts). Mucho no se usa acá. |
@@ -50,3 +55,9 @@ en uno, no llega solo al otro.
   multi-ruta en `datos.js`): o se graba todo o nada. No actualizar el stock por separado.
 - Anular un movimiento devuelve el stock; los movimientos no se borran.
 - Un traspaso escribe `traspaso_out` en la obra de origen y `traspaso_in` en la de destino, ligados por `ref`.
+- En vivo: con una obra abierta se escucha `/panol/{obra}` (`escucharPanol`, EventSource).
+- Sin señal: ingresos, salidas y ajustes pasan por `guardarMovimiento` (panol.js), que si falla la red
+  los encola. Lo que se muestra es lo del servidor + la cola (`aplicarPendientes`). Traspasos, anular
+  y configuración necesitan señal.
+- Fotos del remito: JPEG achicado en el teléfono, en `/panol_fotos/{obra}/{mov}` (aparte de `/panol`
+  para que no se bajen al abrir la obra). Firebase Storage no se usa: pide plan pago.
