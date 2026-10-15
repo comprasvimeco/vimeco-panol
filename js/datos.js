@@ -116,7 +116,10 @@
 
   // ─── Pañol de una obra ──────────────────────────────
   window.getPanol = async function (obraKey) {
-    const data = (await _get('/panol/' + obraKey + '.json')) || {};
+    return _armarPanol((await _get('/panol/' + obraKey + '.json')) || {});
+  };
+
+  function _armarPanol(data) {
     const articulos = Object.entries(data.articulos || {})
       .filter(([, a]) => a && a.nombre)
       .map(([id, a]) => ({ id, ...a, stock: r3(a.stock), minimo: r3(a.minimo), activo: a.activo !== false }));
@@ -130,6 +133,39 @@
       .sort((a, b) => (b.ts || 0) - (a.ts || 0))
       .map(p => p.nombre);
     return { articulos, movimientos, personal };
+  }
+
+  /* En vivo: escucha /panol/{obraKey} con el streaming de RTDB por REST (EventSource)
+     y llama a alCambiar({articulos, movimientos, personal}) cada vez que alguien
+     graba algo. Devuelve la función para dejar de escuchar. Si se corta, EventSource
+     reconecta solo y el servidor vuelve a mandar todo. */
+  window.escucharPanol = function (obraKey, alCambiar) {
+    let raw = {}, timer = null;
+    const es = new EventSource(base() + '/panol/' + obraKey + '.json');
+    const poner = (path, val) => {
+      const partes = path.split('/').filter(Boolean);
+      if (!partes.length) { raw = (val && typeof val === 'object') ? val : {}; return; }
+      let o = raw;
+      for (const p of partes.slice(0, -1)) {
+        if (!o[p] || typeof o[p] !== 'object') { if (val === null) return; o[p] = {}; }
+        o = o[p];
+      }
+      const k = partes[partes.length - 1];
+      if (val === null) delete o[k]; else o[k] = val;
+    };
+    // Un PATCH multi-ruta puede llegar en varios eventos: se repinta una sola vez.
+    const avisar = () => { clearTimeout(timer); timer = setTimeout(() => alCambiar(_armarPanol(raw)), 150); };
+    const leer = ev => { try { return JSON.parse(ev.data); } catch (_) { return null; } };
+    es.addEventListener('put', ev => {
+      const d = leer(ev); if (!d) return;
+      poner(d.path, d.data); avisar();
+    });
+    es.addEventListener('patch', ev => {
+      const d = leer(ev); if (!d || !d.data) return;
+      Object.entries(d.data).forEach(([k, v]) => poner(d.path.replace(/\/$/, '') + '/' + k, v));
+      avisar();
+    });
+    return () => { clearTimeout(timer); es.close(); };
   };
 
   // Clave de RTDB a partir de un nombre: "Juan Pérez" y "juan perez" son la misma persona.

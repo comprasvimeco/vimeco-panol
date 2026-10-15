@@ -71,6 +71,7 @@ let obra = null;         // { key, nombre, rol }
 let arts = [], movs = [];
 let personal = [];       // quienes retiraron en esta obra (para sugerir en "Retira")
 let puede = false;       // carga movimientos
+let dejarDeEscuchar = null;  // corta la escucha en vivo de la obra abierta
 const vista = { tab: 'stock', q: '', modo: 'todos', cat: '', mes: mesDe(hoyISO()), fMov: 'todos' };
 
 // ─── Arranque ───────────────────────────────────────
@@ -131,6 +132,7 @@ function rutear() {
 // ─── Selector de obras ──────────────────────────────
 async function pintarObras() {
   obra = null;
+  escuchar(null);
   $('btn-back').classList.add('hidden');
   mostrar('vista-obras');
   $('cfg-link').classList.toggle('hidden', !alc.admin);
@@ -183,9 +185,26 @@ async function abrirObra(key, silencioso) {
   }
   mostrar('vista-obra');
   pintarObra();
+  if (!silencioso || !dejarDeEscuchar) escuchar(key);
 }
 
 const recargar = () => abrirObra(obra.key, true);
+
+// En vivo: lo que carga otro (el pañolero, otra persona) aparece sin refrescar.
+function escuchar(key) {
+  if (dejarDeEscuchar) { dejarDeEscuchar(); dejarDeEscuchar = null; }
+  if (!key || typeof EventSource === 'undefined') return;
+  dejarDeEscuchar = escucharPanol(key, p => {
+    if (!obra || obra.key !== key) return;
+    ({ articulos: arts, movimientos: movs, personal } = p);
+    pintarObra();
+  });
+}
+
+// El celular corta la conexión cuando la app queda en segundo plano: al volver, se reabre.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && obra) escuchar(obra.key);
+});
 
 function pintarObra() {
   document.title = 'Pañol · ' + obra.nombre;
