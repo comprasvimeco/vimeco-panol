@@ -57,6 +57,9 @@ const fechaCorta = iso => { const [, m, d] = iso.split('-'); return `${d}/${m}`;
 const hora = ts => ts ? new Date(ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
 // Falta lo que se quedó sin stock (tenga mínimo o no) o está por debajo del mínimo.
 const falta = a => a.activo && (a.stock <= 0 || ((a.minimo || 0) > 0 && a.stock < a.minimo));
+// Los faltantes se separan en dos: sin stock y bajo mínimo (todavía queda algo).
+const sinStock = a => a.activo && a.stock <= 0;
+const bajoMin = a => falta(a) && a.stock > 0;
 const plural = (n, s, p) => `${fmtN(n)} ${n === 1 ? s : p}`;
 const sinTitulo = n => String(n || '').split(/\s+/).filter(p => p && !p.endsWith('.')).join(' ') || String(n || '');
 
@@ -295,10 +298,12 @@ function pintarObra() {
   document.title = 'Pañol · ' + obra.nombre;
   $('obra-nombre').textContent = obra.nombre;
   const activos = arts.filter(a => a.activo);
-  const nf = activos.filter(falta).length;
+  const nc = activos.filter(sinStock).length, nb = activos.filter(bajoMin).length;
   $('cnt-arts').innerHTML = `<b>${activos.length}</b> ${activos.length === 1 ? 'material' : 'materiales'}`;
-  $('cnt-falta').innerHTML = `<b>${nf}</b> ${nf === 1 ? 'falta' : 'faltan'}`;
-  $('cnt-falta').classList.toggle('hidden', !nf);
+  $('cnt-cero').innerHTML = `<b>${nc}</b> sin stock`;
+  $('cnt-cero').classList.toggle('hidden', !nc);
+  $('cnt-falta').innerHTML = `<b>${nb}</b> bajo mínimo`;
+  $('cnt-falta').classList.toggle('hidden', !nb);
   $('cnt-ro').innerHTML = icSvg('eye') + 'Solo lectura';
   $('cnt-ro').classList.toggle('hidden', puede);
   $('acciones').classList.toggle('hidden', !puede);
@@ -321,7 +326,8 @@ function pintarStock() {
   const q = normTxt(vista.q);
   // Los dados de baja sólo aparecen buscándolos.
   let lista = arts.filter(a => q ? normTxt(a.nombre + ' ' + (a.categoria || '')).includes(q) : a.activo);
-  if (vista.modo === 'falta') lista = lista.filter(falta);
+  if (vista.modo === 'bajo') lista = lista.filter(bajoMin);
+  if (vista.modo === 'cero') lista = lista.filter(sinStock);
   if (vista.cat) lista = lista.filter(a => (a.categoria || 'Varios') === vista.cat);
 
   const cont = $('lista-stock');
@@ -332,7 +338,7 @@ function pintarStock() {
     return;
   }
   if (!lista.length) {
-    cont.innerHTML = `<div class="pn-vacio">${vista.modo === 'falta' && !q ? 'No falta nada: todo tiene stock y está por encima del mínimo.' : 'No hay materiales que coincidan.'}</div>`;
+    cont.innerHTML = `<div class="pn-vacio">${q || vista.cat ? 'No hay materiales que coincidan.' : vista.modo === 'bajo' ? 'No hay nada bajo mínimo.' : vista.modo === 'cero' ? 'No hay materiales sin stock.' : 'No hay materiales que coincidan.'}</div>`;
     return;
   }
   const grupos = {};
@@ -433,7 +439,8 @@ function enlazar() {
     const b = e.target.closest('[data-cat]');
     if (b) { vista.cat = b.dataset.cat; pintarStock(); }
   });
-  $('cnt-falta').addEventListener('click', () => { vista.tab = 'stock'; vista.modo = 'falta'; pintarObra(); });
+  $('cnt-cero').addEventListener('click', () => { vista.tab = 'stock'; vista.modo = 'cero'; pintarObra(); });
+  $('cnt-falta').addEventListener('click', () => { vista.tab = 'stock'; vista.modo = 'bajo'; pintarObra(); });
   $('seg-movs').addEventListener('click', e => {
     const b = e.target.closest('[data-f]');
     if (b) { vista.fMov = b.dataset.f; pintarMovs(); }

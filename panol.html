@@ -24,6 +24,8 @@
     .pn-cnt b { color: var(--primary-dark); font-variant-numeric: tabular-nums; }
     .pn-cnt--falta { background: #fde6e6; border-color: transparent; color: #b02a2a; cursor: pointer; font: inherit; font-size: .76rem; font-weight: 700; }
     .pn-cnt--falta b { color: #b02a2a; }
+    .pn-cnt--cero { background: #b02a2a; color: #fff; }
+    .pn-cnt--cero b { color: #fff; }
     .pn-cnt--ro { background: var(--gray-100); border-color: transparent; }
     .pn-cnt .icon { width: 12px; height: 12px; }
 
@@ -65,7 +67,8 @@
     .pn-seg { display: inline-flex; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: 2px; }
     .pn-seg button { border: none; background: none; font: inherit; font-size: .78rem; font-weight: 700; color: var(--gray-500); padding: .26rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
     .pn-seg button[aria-pressed="true"] { background: #e8eef7; color: var(--primary); }
-    .pn-seg button[data-f="falta"][aria-pressed="true"] { background: #fde6e6; color: #b02a2a; }
+    .pn-seg button[data-f="bajo"][aria-pressed="true"] { background: #fde6e6; color: #b02a2a; }
+    .pn-seg button[data-f="cero"][aria-pressed="true"] { background: #b02a2a; color: #fff; }
     .pn-cats { display: flex; gap: .35rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; max-width: 100%; }
     .pn-cats::-webkit-scrollbar { display: none; }
     .pn-cats button { border: 1px solid var(--gray-200); background: var(--white); font: inherit; font-size: .76rem; font-weight: 600; color: var(--gray-600);
@@ -285,6 +288,7 @@
     <div class="pn-ttl">
       <h1 class="pn-t" id="obra-nombre"></h1>
       <span class="pn-cnt" id="cnt-arts"></span>
+      <button type="button" class="pn-cnt pn-cnt--falta pn-cnt--cero hidden" id="cnt-cero"></button>
       <button type="button" class="pn-cnt pn-cnt--falta hidden" id="cnt-falta"></button>
       <span class="pn-cnt pn-cnt--ro hidden" id="cnt-ro"></span>
       <div class="pn-push">
@@ -311,7 +315,8 @@
       <div class="pn-flt">
         <div class="pn-seg" id="seg-stock" role="group" aria-label="Mostrar">
           <button type="button" data-f="todos" aria-pressed="true">Todos</button>
-          <button type="button" data-f="falta" aria-pressed="false">Faltantes</button>
+          <button type="button" data-f="bajo" aria-pressed="false">Bajo mínimo</button>
+          <button type="button" data-f="cero" aria-pressed="false">Sin stock</button>
         </div>
         <div class="pn-cats" id="cats"></div>
       </div>
