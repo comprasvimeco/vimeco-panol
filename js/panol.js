@@ -710,7 +710,9 @@ async function formMovimiento(tipo, artInicial) {
   if (tipo === 'ingreso') extra = `<div class="pn-row2">
       <div class="form-group"><label for="fm-prov">Proveedor / de dónde viene</label><input id="fm-prov" class="form-control" list="dl-prov" autocomplete="off">${datalist('dl-prov', usados('proveedor'))}</div>
       <div class="form-group"><label for="fm-rem">Remito Nº</label><input id="fm-rem" class="form-control" autocomplete="off" placeholder="Opcional"></div></div>
-      <div class="form-group"><label>Foto del remito</label><div class="pn-fotos" id="fm-fotos"></div></div>`;
+      <div class="form-group"><label>Foto del remito</label><div class="pn-fotos" id="fm-fotos"></div>
+        <button type="button" class="foc-btn foc-btn--gen pn-ia-btn hidden" id="fm-ia">${icSvg('sparkles')}Leer el remito con IA</button>
+        <div class="pn-err pn-err--info hidden" id="fm-ia-msg"></div></div>`;
   if (tipo === 'salida') extra = `<div class="pn-row2">
       <div class="form-group"><label for="fm-ret">Retira</label><input id="fm-ret" class="form-control" list="dl-ret" autocomplete="off" placeholder="Quién se lo lleva">${datalist('dl-ret', personal)}</div>
       <div class="form-group"><label for="fm-dest">Para qué / dónde</label><input id="fm-dest" class="form-control" list="dl-dest" autocomplete="off" placeholder="Ej: Frente norte, cordón cuneta">${datalist('dl-dest', usados('destino'))}</div></div>`;
@@ -724,6 +726,7 @@ async function formMovimiento(tipo, artInicial) {
       ${extra}
       <div class="form-group" style="margin-bottom:.4rem"><label>Materiales</label></div>
       <div class="pn-lines" id="fm-lines"></div>
+      <div class="pn-ia-pend hidden" id="fm-ia-pend"></div>
       <div class="pn-nuevo hidden" id="fm-nuevo"></div>
       <div class="pn-pick">
         <div class="pn-srch" style="margin-bottom:.7rem">${icSvg('search')}<input type="search" id="fm-pick" placeholder="${tipo === 'ingreso' ? 'Buscar o crear material…' : 'Buscar material…'}" autocomplete="off" enterkeyhint="done"></div>
@@ -740,14 +743,16 @@ async function formMovimiento(tipo, artInicial) {
   const err = m => { $('fm-err').textContent = m; $('fm-err').classList.toggle('hidden', !m); };
   const artDe = id => arts.find(a => a.id === id);
   const fotos = [];
-  if (tipo === 'ingreso') editorFotos($('fm-fotos'), fotos, err);
+  if (tipo === 'ingreso') editorFotos($('fm-fotos'), fotos, err, () => $('fm-ia').classList.toggle('hidden', !fotos.length));
 
   // Renglón de ayuda debajo del nombre: cuánto hay, y si la salida deja negativo.
   function subDe(l) {
-    if (l.nuevo) return `<span class="nuevo">Nuevo</span> · ${esc(l.nuevo.categoria)}`;
+    const remito = l.leido ? ` · remito: ${esc(l.leido)}` : '';
+    if (l.nuevo) return `<span class="nuevo">Nuevo</span> · ${esc(l.nuevo.categoria)}${remito}`;
     const a = artDe(l.id), n = parseN(l.cant);
     const hay = `${fmtN(a.stock)} ${esc(a.unidad)}`;
     if (tipo === 'ajuste') return `Sistema: ${hay}` + (n >= 0 ? ` · diferencia ${fmtSig(n - a.stock)}` : '');
+    if (remito) return `Hay ${hay}${remito}`;
     if ((tipo === 'salida' || tipo === 'traspaso') && n > a.stock) return `<span class="sub warn">Hay ${hay}: queda en ${fmtN(a.stock - n)}</span>`;
     return `Hay ${hay}`;
   }
@@ -761,8 +766,12 @@ async function formMovimiento(tipo, artInicial) {
 
   function agregar(a) {
     const ya = lineas.findIndex(l => l.id === a.id);
-    if (ya >= 0) return enfocarLinea(ya);
+    if (ya >= 0) {
+      if (iaActual) { usarRenglonIA(lineas[ya]); pintarLineas(); }
+      return enfocarLinea(ya);
+    }
     lineas.push({ id: a.id, nombre: a.nombre, unidad: a.unidad || 'u', cant: '' });
+    if (iaActual) usarRenglonIA(lineas[lineas.length - 1]);
     pintarLineas();
     enfocarLinea(lineas.length - 1);
   }
@@ -821,12 +830,12 @@ async function formMovimiento(tipo, artInicial) {
   pick.addEventListener('blur', () => setTimeout(() => $('fm-res')?.classList.add('hidden'), 120));
 
   // Material nuevo dentro de un ingreso
-  function altaEnLinea(nombre) {
+  function altaEnLinea(nombre, unidad) {
     const box = $('fm-nuevo');
     box.innerHTML = `<div class="pn-nuevo-t">Material nuevo</div>
       <div class="form-group"><input id="fn-nombre" class="form-control" value="${esc(nombre)}" aria-label="Nombre"></div>
       <div class="pn-row2">
-        <div class="form-group"><label for="fn-unidad">Unidad</label><input id="fn-unidad" class="form-control" value="u" autocomplete="off"></div>
+        <div class="form-group"><label for="fn-unidad">Unidad</label><input id="fn-unidad" class="form-control" value="${esc(unidad || 'u')}" autocomplete="off"></div>
         <div class="form-group"><label for="fn-min">Stock mínimo</label><input id="fn-min" class="form-control" inputmode="decimal" placeholder="Opcional"></div>
       </div>
       <div class="form-group"><label for="fn-cat">Categoría</label><input id="fn-cat" class="form-control" autocomplete="off" placeholder="Elegí o escribí una"></div>
@@ -837,7 +846,7 @@ async function formMovimiento(tipo, artInicial) {
     comboLista($('fn-unidad'), unidadesConocidas());
     comboLista($('fn-cat'), catsConocidas());
     setTimeout(() => $('fn-unidad').select(), 30);
-    $('fn-no').onclick = () => { box.classList.add('hidden'); box.innerHTML = ''; };
+    $('fn-no').onclick = () => { box.classList.add('hidden'); box.innerHTML = ''; if (iaActual) { iaActual = null; pintarPend(); } };
     $('fn-ok').onclick = () => {
       const n = $('fn-nombre').value.trim().replace(/\s+/g, ' ');
       if (!n) return;
@@ -847,10 +856,108 @@ async function formMovimiento(tipo, artInicial) {
       const min = parseN($('fn-min').value);
       lineas.push({ nuevo: { nombre: n, unidad: $('fn-unidad').value.trim() || 'u', categoria: $('fn-cat').value.trim() || 'Varios', minimo: min > 0 ? min : 0 },
                     nombre: n, unidad: $('fn-unidad').value.trim() || 'u', cant: '' });
+      if (iaActual) usarRenglonIA(lineas[lineas.length - 1]);
       box.classList.add('hidden'); box.innerHTML = '';
       err('');
       pintarLineas();
       enfocarLinea(lineas.length - 1);
+    };
+  }
+
+  // ─── Lectura del remito con IA (js/gemini.js) ───
+  // Lo que reconoce entra como renglón con la cantidad del remito; lo que no está en
+  // el pañol queda en una lista aparte para darlo de alta o elegir cuál es.
+  // No se graba nada: el pañolero revisa y guarda como siempre.
+  const sinReconocer = [];
+  let iaActual = null;   // renglón del remito que se está creando o buscando
+  const cantTxt = n => n > 0 ? String(Math.round(n * 1000) / 1000).replace('.', ',') : '';
+  // Lo que dice el papel, debajo del renglón: así se ve si lo emparejó con otro material.
+  const delRemito = it => it.leido ? `${it.desc} (${it.leido})` : it.desc;
+
+  function usarRenglonIA(l) {
+    if (!l.cant) l.cant = cantTxt(iaActual.cantidad);
+    l.leido = delRemito(iaActual);
+    sinReconocer.splice(sinReconocer.indexOf(iaActual), 1);
+    iaActual = null;
+    pintarPend();
+  }
+  function pintarPend() {
+    const box = $('fm-ia-pend');
+    box.classList.toggle('hidden', !sinReconocer.length);
+    box.innerHTML = !sinReconocer.length ? '' : '<div class="pn-ia-pend-t">No están en el pañol: creá cada uno o buscá cuál es</div>' +
+      sinReconocer.map((r, i) => `<div class="pn-ia-r${r === iaActual ? ' on' : ''}">
+        <div style="min-width:0"><div class="nm">${esc(r.desc)}</div><div class="sub">${esc(r.leido || `${fmtN(r.cantidad)} ${r.unidad}`)}</div></div>
+        <button type="button" class="foc-btn foc-btn--clear" data-ia-buscar="${i}">${icSvg('search')}Buscar</button>
+        <button type="button" class="foc-btn foc-btn--gen" data-ia-crear="${i}">${icSvg('plus')}Crear</button></div>`).join('');
+  }
+
+  if (tipo === 'ingreso') {
+    $('fm-ia-pend').addEventListener('click', e => {
+      const c = e.target.closest('[data-ia-crear]'), b = e.target.closest('[data-ia-buscar]');
+      if (!c && !b) return;
+      iaActual = sinReconocer[c ? +c.dataset.iaCrear : +b.dataset.iaBuscar];
+      pintarPend();
+      if (c) return altaEnLinea(iaActual.desc, iaActual.unidad);
+      $('fm-nuevo').classList.add('hidden');
+      $('fm-nuevo').innerHTML = '';
+      // Se busca por la primera palabra que diga algo ("Cemento Loma Negra x 50kg" → "cemento").
+      pick.value = normTxt(iaActual.desc).split(' ').find(w => w.length > 2 && !/\d/.test(w)) || '';
+      sel = 0;
+      pintarRes();
+      pick.focus();
+    });
+
+    $('fm-ia').onclick = async () => {
+      const b = $('fm-ia'), msg = $('fm-ia-msg');
+      b.disabled = true;
+      b.innerHTML = '<span class="spinner"></span> Leyendo el remito…';
+      msg.classList.add('hidden');
+      err('');
+      try {
+        const r = await leerRemito(fotos, arts.filter(a => a.activo).map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad })));
+        if (!b.isConnected) return;   // cerraron el formulario mientras leía
+        if (r.proveedor && !$('fm-prov').value.trim())
+          $('fm-prov').value = usados('proveedor').find(p => normTxt(p) === normTxt(r.proveedor)) || r.proveedor;
+        if (r.nro && !$('fm-rem').value.trim()) $('fm-rem').value = r.nro;
+        // La fecha no se toca: el remito suele ser de días (o meses) antes de que llegue a la obra.
+
+        // Un material que figura en dos renglones del remito se suma en uno.
+        const porId = new Map();
+        for (const it of r.items) {
+          if (!it.id) {
+            if (!sinReconocer.some(x => normTxt(x.desc) === normTxt(it.desc))) sinReconocer.push(it);
+            continue;
+          }
+          const ya = porId.get(it.id);
+          if (ya) { ya.cantidad += it.cantidad; ya.txt += ' + ' + delRemito(it); }
+          else porId.set(it.id, { ...it, txt: delRemito(it) });
+        }
+        for (const it of porId.values()) {
+          let l = lineas.find(x => x.id === it.id);
+          if (!l) {
+            const a = artDe(it.id);
+            l = { id: a.id, nombre: a.nombre, unidad: a.unidad || 'u', cant: '' };
+            lineas.push(l);
+          }
+          if (!l.cant) l.cant = cantTxt(it.cantidad);
+          l.leido = it.txt;
+        }
+        pintarLineas();
+        pintarPend();
+        const n = porId.size, s = sinReconocer.length;
+        msg.textContent = !n && !s ? 'No se encontraron materiales en la foto. Cargalos a mano.'
+          : (n ? `${n} material${n > 1 ? 'es' : ''} reconocido${n > 1 ? 's' : ''}` : 'Ningún material reconocido') +
+            (s ? ` · ${s} sin reconocer` : '') + '. Revisá las cantidades antes de guardar.';
+        msg.classList.remove('hidden');
+      } catch (e) {
+        if (!b.isConnected) return;
+        msg.textContent = navigator.onLine === false ? 'Sin señal: leer el remito necesita conexión. Cargalo a mano o probá cuando vuelva.'
+          : 'No se pudo leer el remito. ' + e.message;
+        msg.classList.remove('hidden');
+      } finally {
+        b.disabled = false;
+        b.innerHTML = icSvg('sparkles') + 'Leer el remito con IA';
+      }
     };
   }
 
@@ -859,7 +966,7 @@ async function formMovimiento(tipo, artInicial) {
 
   $('fm-ok').onclick = async () => {
     err('');
-    if (!lineas.length) return err('Agregá al menos un material.');
+    if (!lineas.length) return err(sinReconocer.length ? 'Creá o buscá los materiales del remito que no están en el pañol.' : 'Agregá al menos un material.');
     for (const l of lineas) {
       const n = parseN(l.cant);
       if (tipo === 'ajuste' ? !(n >= 0) : !(n > 0)) return err(`Revisá la cantidad de "${l.nombre}".`);
@@ -872,6 +979,9 @@ async function formMovimiento(tipo, artInicial) {
       if (!o) return err('Elegí la obra de destino.');
       destino = { key: o.key, nombre: o.nombre };
     }
+    if (sinReconocer.length && !await showConfirm('Quedan materiales del remito sin cargar',
+      sinReconocer.map(r => r.desc + (r.leido ? ` (${r.leido})` : '')).join('\n') + '\n\n¿Guardo el ingreso sin ellos?',
+      { boton: 'Guardar igual', tono: 'warn', icono: 'alert' })) return;
     if (tipo === 'salida' || tipo === 'traspaso') {
       const negativos = lineas.filter(l => parseN(l.cant) > artDe(l.id).stock);
       if (negativos.length && !await showConfirm('Va a quedar en negativo',
@@ -951,9 +1061,10 @@ const botonFoto = () => `<label class="pn-foto pn-foto--add">${icSvg('camera')}<
   <input type="file" accept="image/*" hidden></label>`;
 
 // Fotos de un formulario: se eligen, se ven y se quitan antes de guardar.
-function editorFotos(cont, fotos, err) {
+function editorFotos(cont, fotos, err, alCambiar) {
   const pintar = () => {
     cont.innerHTML = fotos.map((f, i) => miniFoto(f, i, true)).join('') + (fotos.length < MAX_FOTOS ? botonFoto() : '');
+    if (alCambiar) alCambiar();
   };
   cont.addEventListener('change', async e => {
     const file = e.target.files && e.target.files[0];

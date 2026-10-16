@@ -194,6 +194,17 @@
     .pn-foto--add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; cursor: pointer;
       border: 1.5px dashed var(--gray-300); background: var(--white); color: var(--primary); font-size: .72rem; font-weight: 700; }
     .pn-foto--add .icon { width: 22px; height: 22px; }
+    /* Lectura del remito con IA */
+    .pn-ia-btn { width: 100%; justify-content: center; margin-top: .6rem; }
+    .pn-ia-btn .spinner { width: 16px; height: 16px; }
+    .pn-ia-pend { background: #fffaf0; border: 1.5px solid #f1dca8; border-radius: 12px; padding: .55rem .6rem; margin-bottom: .5rem; display: grid; gap: .4rem; }
+    .pn-ia-pend-t { font-size: .78rem; font-weight: 700; color: #7a5300; }
+    .pn-ia-r { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .35rem; align-items: center; background: #fff; border-radius: 10px; padding: .4rem .45rem .4rem .6rem; }
+    .pn-ia-r.on { outline: 2px solid #e8b94a; }
+    .pn-ia-r .nm { font-weight: 700; color: var(--primary-dark); font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pn-ia-r .sub { font-size: .72rem; color: var(--gray-500); }
+    .pn-ia-r .foc-btn { padding: .35rem .55rem; font-size: .76rem; }
+    .pn-ia-r .foc-btn .icon { width: 13px; height: 13px; }
     .pn-foto-cargando { display: flex; align-items: center; gap: .4rem; min-height: 40px; font-size: .82rem; color: var(--gray-500); }
     .pn-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .35rem .9rem; font-size: .86rem; margin: .2rem 0 .6rem; }
     .pn-kv > span { color: var(--gray-500); }
@@ -363,6 +374,7 @@
 <script src="js/config.js"></script>
 <script src="js/datos.js"></script>
 <script src="js/offline.js"></script>
+<script src="js/gemini.js"></script>
 <script src="js/panolExport.js"></script>
 <script src="js/panol.js"></script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>

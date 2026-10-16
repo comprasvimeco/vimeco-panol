@@ -9,7 +9,7 @@ const ARCHIVOS = [
   './', 'index.html', 'panol.html', 'manifest.json', 'icono_app.png', 'assets/logo_claro.png',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
   'css/styles.css',
-  'js/auth.js', 'js/config.js', 'js/datos.js', 'js/icons.js', 'js/install.js', 'js/jspdf.umd.min.js',
+  'js/auth.js', 'js/config.js', 'js/datos.js', 'js/gemini.js', 'js/icons.js', 'js/install.js', 'js/jspdf.umd.min.js',
   'js/logoBase64.js', 'js/offline.js', 'js/panol.js', 'js/panolExport.js', 'js/ui.js'
 ];
 

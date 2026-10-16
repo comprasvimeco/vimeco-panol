@@ -4,9 +4,11 @@ Stock y movimientos del pañol de cada obra de VIMECO S.A. Qué hace y quién ve
 
 ## Stack y deploy
 
-PWA estática (HTML/CSS/JS), sin build ni dependencias. GitHub Pages publica **la raíz de `main`
-tal cual** (https://comprasvimeco.github.io/vimeco-panol/): un push a `main` es un deploy.
-No hay número de versión ni hook de commits (a diferencia de VIMECO OC).
+PWA estática (HTML/CSS/JS), sin dependencias. Un push a `main` es un deploy: GitHub Actions
+(`.github/workflows/deploy.yml`) corre `build.js`, que sólo pone la clave de Gemini en `js/config.js`
+(Secret `GEMINI_API_KEY`, la misma de VIMECO OC), y publica la raíz en Pages
+(https://comprasvimeco.github.io/vimeco-panol/). En el repo `config.js` queda con el marcador
+`%%GEMINI_API_KEY%%`: no commitear la clave. No hay número de versión ni hook de commits.
 
 - Los `<script>` no llevan `?v=`: Pages cachea ~10 min, así que un cambio puede tardar en verse.
 - `sw.js` (service worker) guarda la app para abrir sin señal; prueba la red primero, así que no
@@ -24,6 +26,7 @@ No hay número de versión ni hook de commits (a diferencia de VIMECO OC).
 | `js/datos.js` | Acceso a Firebase RTDB **por REST, sin SDK**. El esquema de la base está documentado arriba de todo. |
 | `js/offline.js` | Sin señal: copia local de cada obra (IndexedDB) y cola de movimientos que se suben solos al volver la señal. |
 | `sw.js` | Service worker: la app abre sin señal. |
+| `js/gemini.js` | Leer el remito con IA: motor `callGemini` copiado de VIMECO OC (cadena de modelos, salta al agotado) + `leerRemito(fotos, articulos)`. Sólo llena el formulario de ingreso; no graba. |
 | `js/panolExport.js` | PDF (jsPDF) y Excel (`xlsx-js-style`, se baja de jsDelivr al exportar). |
 | `js/config.js` | Config de Firebase, proyecto **`vimeco-panol`** (base propia, separada de VIMECO OC). |
 | `css/styles.css` | Copia de la hoja de VIMECO OC (tokens, header, botones `foc-btn`, `eq-dlg`, toasts). Mucho no se usa acá. |
