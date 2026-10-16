@@ -1070,7 +1070,10 @@ async function escanear(file) {
 
 const miniFoto = (src, i, quitar) => `<span class="pn-foto"><img src="${src}" alt="Foto ${i + 1} del remito" data-ver="${i}">${quitar
   ? `<button type="button" class="pn-x" data-quitar-foto="${i}" aria-label="Quitar foto">${icSvg('x')}</button>` : ''}</span>`;
-const botonFoto = () => `<label class="pn-foto pn-foto--add">${icSvg('camera')}<span>Agregar</span>
+// Dos botones: "Sacar foto" abre directo la cámara (capture); "Galería", las fotos guardadas.
+const botonFoto = () => `<label class="pn-foto pn-foto--add">${icSvg('camera')}<span>Sacar foto</span>
+  <input type="file" accept="image/*" capture="environment" hidden></label>
+  <label class="pn-foto pn-foto--add">${icSvg('image')}<span>Galería</span>
   <input type="file" accept="image/*" hidden></label>`;
 
 // Fotos de un formulario: se eligen, se ven y se quitan antes de guardar.
@@ -1083,7 +1086,7 @@ function editorFotos(cont, fotos, err, alCambiar) {
     const file = await escanear(e.target.files && e.target.files[0]);
     e.target.value = '';
     if (!file) return;
-    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    e.target.closest('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
     try { fotos.push(await achicarFoto(file)); } catch (x) { err(x.message); }
     pintar();
   });
@@ -1116,7 +1119,7 @@ async function fotosDeMovimiento(m, q, puedeAgregar) {
     const file = await escanear(e.target.files && e.target.files[0]);
     e.target.value = '';
     if (!file || !cont.isConnected) return;
-    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    e.target.closest('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
     try {
       const f = await achicarFoto(file);
       await agregarFotos(obra.key, m.id, fotos.length, [f]);
@@ -1169,7 +1172,7 @@ async function fotosDeStock(a, puedeCambiar) {
   cont.addEventListener('change', async e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    e.target.closest('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
     try {
       const f = await agregarFotoStock(obra.key, a.id, await achicarFoto(file), yo, fotos.length + 1);
       fotos.unshift(f);
