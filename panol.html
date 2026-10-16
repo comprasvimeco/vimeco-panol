@@ -205,6 +205,8 @@
     .pn-big--in input { flex: 1 1 auto; width: 100%; min-width: 3ch; border: 0; outline: 0; background: transparent; padding: 0; font: inherit; font-size: 2rem; font-weight: 700; line-height: 1.2; color: var(--primary-dark); font-variant-numeric: tabular-nums; }
     .pn-big--in.falta input { color: #b02a2a; }
     .pn-big--in span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gray-500); font-size: .9rem; }
+    /* En escritorio sobra ancho: la unidad se ve entera y el número se achica antes que ella. */
+    @media (min-width: 600px) { .pn-big--in span { flex: none; } .pn-big--in input { flex: 1 1 0; } }
     .pn-aj-sub { font-size: .76rem; color: var(--gray-500); margin-top: .3rem; }
     .pn-aj-sub .mas { color: #1a7f3c; }
     .pn-aj-sub .menos { color: #b02a2a; }
