@@ -27,6 +27,7 @@ PWA estática (HTML/CSS/JS), sin dependencias. Un push a `main` es un deploy: Gi
 | `js/offline.js` | Sin señal: copia local de cada obra (IndexedDB) y cola de movimientos que se suben solos al volver la señal. |
 | `sw.js` | Service worker: la app abre sin señal. |
 | `js/gemini.js` | Leer el remito con IA: motor `callGemini` copiado de VIMECO OC (cadena de modelos, salta al agotado) + `leerRemito(fotos, articulos)`. Sólo llena el formulario de ingreso; no graba. |
+| `js/scanner.js` + `js/vendor/opencv.js` | Escáner de VIMECO OC (`openScanner(file)`): recorte de perspectiva y filtro de cada foto del remito antes de achicarla. Sus estilos (`scan-*`) ya estaban en `styles.css`. OpenCV se baja recién al abrirlo. |
 | `js/panolExport.js` | PDF (jsPDF) y Excel (`xlsx-js-style`, se baja de jsDelivr al exportar). |
 | `js/config.js` | Config de Firebase, proyecto **`vimeco-panol`** (base propia, separada de VIMECO OC). |
 | `css/styles.css` | Copia de la hoja de VIMECO OC (tokens, header, botones `foc-btn`, `eq-dlg`, toasts). Mucho no se usa acá. |
@@ -64,3 +65,5 @@ en uno, no llega solo al otro.
   y configuración necesitan señal.
 - Fotos del remito: JPEG achicado en el teléfono, en `/panol_fotos/{obra}/{mov}` (aparte de `/panol`
   para que no se bajen al abrir la obra). Firebase Storage no se usa: pide plan pago.
+- Fotos del stock de un material (sin escáner): `/panol_fotos_stock/{obra}/{art}/{clave}`; el artículo
+  guarda sólo cuántas tiene (`fotos`). Agregar o quitar necesita señal.

@@ -2,7 +2,8 @@
 
    Siempre prueba la red primero (así un cambio publicado se ve enseguida) y, si no hay
    o tarda más de 3 s, usa la copia guardada. Sólo toca los archivos de la app: Firebase
-   y los CDN van directo. Al agregar un archivo a la app, sumarlo a ARCHIVOS. */
+   y los CDN van directo. Al agregar un archivo a la app, sumarlo a ARCHIVOS. OpenCV (js/vendor/opencv.js,
+   10 MB) no va en ARCHIVOS: se guarda la primera vez que se usa el escáner. */
 
 const CACHE = 'panol-v1';
 const ARCHIVOS = [
@@ -10,7 +11,7 @@ const ARCHIVOS = [
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
   'css/styles.css',
   'js/auth.js', 'js/config.js', 'js/datos.js', 'js/gemini.js', 'js/icons.js', 'js/install.js', 'js/jspdf.umd.min.js',
-  'js/logoBase64.js', 'js/offline.js', 'js/panol.js', 'js/panolExport.js', 'js/ui.js'
+  'js/logoBase64.js', 'js/offline.js', 'js/panol.js', 'js/panolExport.js', 'js/scanner.js', 'js/ui.js'
 ];
 
 self.addEventListener('install', e => {

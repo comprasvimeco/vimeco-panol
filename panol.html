@@ -185,6 +185,7 @@
     .pn-tag .icon { width: 11px; height: 11px; }
     .pn-cam { display: inline-flex; align-self: center; color: var(--gray-400); }
     .pn-cam .icon { width: 14px; height: 14px; }
+    .pn-r .l2 .pn-cam { margin-left: .3rem; vertical-align: -2px; }
 
     /* Fotos del remito */
     .pn-fotos { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -194,6 +195,8 @@
     .pn-foto--add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; cursor: pointer;
       border: 1.5px dashed var(--gray-300); background: var(--white); color: var(--primary); font-size: .72rem; font-weight: 700; }
     .pn-foto--add .icon { width: 22px; height: 22px; }
+    .pn-foto-f { position: absolute; left: 0; right: 0; bottom: 0; padding: .1rem 0; background: rgba(0,0,0,.5); color: #fff;
+      font-size: .66rem; font-weight: 700; text-align: center; pointer-events: none; }
     /* Lectura del remito con IA */
     .pn-ia-btn { width: 100%; justify-content: center; margin-top: .6rem; }
     .pn-ia-btn .spinner { width: 16px; height: 16px; }
@@ -375,6 +378,7 @@
 <script src="js/datos.js"></script>
 <script src="js/offline.js"></script>
 <script src="js/gemini.js"></script>
+<script src="js/scanner.js"></script>
 <script src="js/panolExport.js"></script>
 <script src="js/panol.js"></script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>

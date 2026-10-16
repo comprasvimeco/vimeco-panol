@@ -356,7 +356,8 @@ function filaArt(a) {
   const tag = !a.activo ? '<span class="pn-tag pn-tag--baja">De baja</span>'
     : f === 'falta' ? '<span class="pn-tag pn-tag--cero">Sin stock</span>'
     : f ? '<span class="pn-tag pn-tag--bajo">Bajo mínimo</span>' : '';
-  const l2 = [a.minimo ? `Mín. ${fmtN(a.minimo)}` : '', tag].filter(Boolean).join(' · ') || '&nbsp;';
+  const l2 = [a.minimo ? `Mín. ${fmtN(a.minimo)}` : '', tag].filter(Boolean).join(' · ')
+    + (a.fotos ? `<span class="pn-cam" title="Tiene fotos del stock">${icSvg('camera')}</span>` : '') || '&nbsp;';
   return `<button type="button" class="pn-r${f ? ' ' + f : ''}${a.activo ? '' : ' baja'}" data-art="${esc(a.id)}">
     <span class="pn-sq ${f ? 't-' + f : ''}">${icSvg('box')}</span>
     <span class="mid"><span class="nm">${esc(a.nombre)}</span><span class="l2">${l2}</span></span>
@@ -470,7 +471,7 @@ function enlazar() {
   $('dlg-ov').addEventListener('mousedown', e => { if (e.target === $('dlg-ov') && !dlgEstado.fijo) cerrarDlg(); });
   // (Con una confirmación abierta encima, su propio Escape corta el evento antes de llegar acá.)
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !$('dlg-ov').classList.contains('hidden')) cerrarDlg();
+    if (e.key === 'Escape' && !$('dlg-ov').classList.contains('hidden') && !document.body.classList.contains('scan-open')) cerrarDlg();
   });
 }
 
@@ -502,6 +503,7 @@ function fichaArticulo(a) {
   const ult = t => { const m = movs.find(x => !x.anulado && t.includes(x.tipo) && x.items.some(it => it.id === a.id)); return m ? fechaLarga(m.fecha) : '—'; };
   // Quien carga corrige el stock acá mismo: se guarda como un Ajuste de inventario.
   const ajusta = puede && a.activo;
+  const fotoStock = puede && a.activo;
   const d = abrirDlg({
     tono: f ? 't-' + f : '', icono: 'box', titulo: a.nombre,
     sub: esc(a.categoria || 'Varios') + (a.activo ? '' : ' · <b>dado de baja</b>'),
@@ -521,6 +523,7 @@ function fichaArticulo(a) {
         <span>Último ingreso</span><b>${ult(['ingreso', 'traspaso_in'])}</b>
         <span>Última salida</span><b>${ult(['salida', 'traspaso_out'])}</b>
       </div>
+      ${a.fotos || fotoStock ? `<div class="pn-sec-t">Fotos del stock</div><div class="pn-fotos" id="fa-fotos">${a.fotos ? '<span class="pn-foto-cargando"><span class="spinner"></span></span>' : ''}</div>` : ''}
       <div class="pn-sec-t">Últimos movimientos</div>
       <div class="pn-hist">${hist.length ? hist.map(m => {
         const it = m.items.find(x => x.id === a.id);
@@ -540,6 +543,7 @@ function fichaArticulo(a) {
     if (b.dataset.a === 'editar') formArticulo(a);
     else formMovimiento(b.dataset.a, a);
   });
+  if (a.fotos || fotoStock) fotosDeStock(a, fotoStock);
   if (!ajusta) return;
 
   const inp = $('fa-real'), btn = $('fa-aj');
@@ -1055,6 +1059,15 @@ async function achicarFoto(file) {
   } finally { URL.revokeObjectURL(url); }
 }
 
+// Antes de achicarla pasa por el escáner (copia de VIMECO OC): recorte de perspectiva y filtro,
+// así el remito se lee mejor, a ojo y por la IA. null = canceló. Si el escáner no carga (sin señal
+// la primera vez), va la foto como vino.
+async function escanear(file) {
+  if (!file || typeof openScanner !== 'function') return file || null;
+  try { return await openScanner(file); }
+  catch (_) { showToast('Escáner no disponible; se usa la foto como vino', 'warning'); return file; }
+}
+
 const miniFoto = (src, i, quitar) => `<span class="pn-foto"><img src="${src}" alt="Foto ${i + 1} del remito" data-ver="${i}">${quitar
   ? `<button type="button" class="pn-x" data-quitar-foto="${i}" aria-label="Quitar foto">${icSvg('x')}</button>` : ''}</span>`;
 const botonFoto = () => `<label class="pn-foto pn-foto--add">${icSvg('camera')}<span>Agregar</span>
@@ -1067,7 +1080,8 @@ function editorFotos(cont, fotos, err, alCambiar) {
     if (alCambiar) alCambiar();
   };
   cont.addEventListener('change', async e => {
-    const file = e.target.files && e.target.files[0];
+    const file = await escanear(e.target.files && e.target.files[0]);
+    e.target.value = '';
     if (!file) return;
     cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
     try { fotos.push(await achicarFoto(file)); } catch (x) { err(x.message); }
@@ -1099,14 +1113,67 @@ async function fotosDeMovimiento(m, q, puedeAgregar) {
     if (v) verImagen(fotos[+v.dataset.ver]);
   });
   cont.addEventListener('change', async e => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+    const file = await escanear(e.target.files && e.target.files[0]);
+    e.target.value = '';
+    if (!file || !cont.isConnected) return;
     cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
     try {
       const f = await achicarFoto(file);
       await agregarFotos(obra.key, m.id, fotos.length, [f]);
       fotos.push(f);
       m.fotos = fotos.length;
+      showToast('Foto agregada', 'success');
+    } catch (x) {
+      showToast(x.sinRed ? 'Sin señal: la foto se puede agregar cuando vuelva' : 'No se pudo guardar la foto: ' + x.message, 'error');
+    }
+    if (cont.isConnected) pintar();
+  });
+  pintar();
+}
+
+// Fotos del stock de un material (cómo está el acopio, cuántos caños quedan): sin escáner,
+// con la fecha a la vista. Se bajan al abrir la ficha y agregar o quitar necesita señal.
+const MAX_FOTOS_STOCK = 6;
+async function fotosDeStock(a, puedeCambiar) {
+  const cont = $('fa-fotos');
+  let fotos = [];
+  if (a.fotos) {
+    try { fotos = await getFotosStock(obra.key, a.id); }
+    catch (e) { if (cont.isConnected) cont.innerHTML = `<span class="pn-foto-cargando">${e.sinRed ? 'Sin señal: las fotos se ven cuando vuelva.' : 'No se pudieron bajar las fotos.'}</span>`; return; }
+  }
+  if (!cont.isConnected) return;
+  const pintar = () => {
+    cont.innerHTML = fotos.map((f, i) => `<span class="pn-foto"><img src="${f.foto}" alt="Foto del ${fechaCorta(isoDe(new Date(f.ts)))}" data-ver="${i}"
+        title="${esc(new Date(f.ts).toLocaleDateString('es-AR') + ' ' + hora(f.ts) + (f.por ? ' · ' + f.por.nombre : ''))}">
+      <span class="pn-foto-f">${fechaCorta(isoDe(new Date(f.ts)))}</span>${puedeCambiar
+        ? `<button type="button" class="pn-x" data-quitar-foto="${i}" aria-label="Quitar foto">${icSvg('x')}</button>` : ''}</span>`).join('')
+      + (puedeCambiar && fotos.length < MAX_FOTOS_STOCK ? botonFoto() : '')
+      + (!fotos.length && !puedeCambiar ? '<span class="pn-foto-cargando">Sin fotos.</span>' : '');
+  };
+  cont.addEventListener('click', async e => {
+    const q = e.target.closest('[data-quitar-foto]');
+    if (q) {
+      const f = fotos[+q.dataset.quitarFoto];
+      if (!await showConfirm('Quitar foto', `Se borra la foto del ${new Date(f.ts).toLocaleDateString('es-AR')}.`, { boton: 'Quitar', tono: 'del', icono: 'trash' })) return;
+      try {
+        await quitarFotoStock(obra.key, a.id, f.id, fotos.length - 1);
+        fotos = fotos.filter(x => x !== f);
+        a.fotos = fotos.length;
+      } catch (x) { showToast(x.sinRed ? 'Sin señal: la foto se puede quitar cuando vuelva' : 'No se pudo quitar la foto: ' + x.message, 'error'); }
+      if (cont.isConnected) pintar();
+      return;
+    }
+    const v = e.target.closest('[data-ver]');
+    if (v) verImagen(fotos[+v.dataset.ver].foto);
+  });
+  cont.addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    cont.querySelector('.pn-foto--add').innerHTML = '<span class="spinner"></span>';
+    try {
+      const f = await agregarFotoStock(obra.key, a.id, await achicarFoto(file), yo, fotos.length + 1);
+      fotos.unshift(f);
+      a.fotos = fotos.length;
       showToast('Foto agregada', 'success');
     } catch (x) {
       showToast(x.sinRed ? 'Sin señal: la foto se puede agregar cuando vuelva' : 'No se pudo guardar la foto: ' + x.message, 'error');

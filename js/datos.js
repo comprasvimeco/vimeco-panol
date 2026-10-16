@@ -6,7 +6,7 @@
      /obras/{key}                  nombre, activa, creadaEn
      /panol_config/obras/{obraKey} panolero: codigo, visores: {codigo:true}
      /panol/{obraKey}/articulos/{id}
-         nombre, unidad, categoria, minimo, stock, activo, creadoEn
+         nombre, unidad, categoria, minimo, stock, activo, creadoEn, fotos (cuántas fotos del stock tiene)
      /panol/{obraKey}/personal/{clave}   nombre, ts   (quienes retiraron: se aprende de las salidas)
      /panol/{obraKey}/movimientos/{id}
          tipo: ingreso | salida | ajuste | traspaso_out | traspaso_in
@@ -15,6 +15,8 @@
          proveedor, remito (ingreso) · retira, destino (salida) · otraObra {key, nombre}, ref (traspaso)
          nota, anulado {por, ts}, fotos (cuántas fotos del remito tiene)
      /panol_fotos/{obraKey}/{movId}/{n}  foto JPEG como data URL (aparte: no se baja al abrir la obra)
+     /panol_fotos_stock/{obraKey}/{artId}/{clave}  foto, ts, por {codigo, nombre}
+         fotos de cómo está el material en la obra (el acopio de áridos, los caños que quedan)
 
    El stock de cada artículo se guarda en el artículo y se mueve en la misma
    escritura que el movimiento (PATCH multi-ruta: o se graba todo o nada). */
@@ -33,6 +35,7 @@
   const _get   = (path, ms) => _req(path, undefined, ms);
   const _patch = (path, data, ms) => _req(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, ms);
   const _put   = (path, data, ms) => _req(path, { method: 'PUT',   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, ms);
+  const _del   = path => _req(path, { method: 'DELETE' });
 
   // Un cuelgue de red se vuelve error. Los errores de red (no los del servidor) llevan
   // `sinRed`: con esos, lo que se estaba grabando queda en la cola (offline.js).
@@ -271,6 +274,24 @@
     nuevas.forEach((f, i) => { upd[previas + i] = f; });
     await _patch(`/panol_fotos/${obraKey}/${movId}.json`, upd, 90000);
     await _patch(`/panol/${obraKey}/movimientos/${movId}.json`, { fotos: previas + nuevas.length });
+  };
+
+  // Fotos del stock de un material, la más nueva primero.
+  window.getFotosStock = async function (obraKey, artId) {
+    const d = await _get(`/panol_fotos_stock/${obraKey}/${artId}.json`, 60000);
+    return Object.entries(d || {}).filter(([, f]) => f && f.foto)
+      .map(([id, f]) => ({ id, ...f })).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  };
+  // `quedan`: cuántas fotos tiene el material después del cambio (va en el artículo para la lista).
+  window.agregarFotoStock = async function (obraKey, artId, foto, por, quedan) {
+    const f = { id: nuevaClave(), foto, ts: Date.now(), por };
+    await _put(`/panol_fotos_stock/${obraKey}/${artId}/${f.id}.json`, { foto, ts: f.ts, por }, 90000);
+    await patchArticulo(obraKey, artId, { fotos: quedan });
+    return f;
+  };
+  window.quitarFotoStock = async function (obraKey, artId, fotoId, quedan) {
+    await _del(`/panol_fotos_stock/${obraKey}/${artId}/${fotoId}.json`);
+    await patchArticulo(obraKey, artId, { fotos: quedan || null });
   };
 
   /* Lo cargado sin señal (la cola de offline.js) aplicado sobre lo último que mandó el

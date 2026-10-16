@@ -9,6 +9,7 @@ Stock y movimientos del pañol de cada obra de VIMECO S.A. PWA estática (HTML/C
 - **Sin señal**: la app abre con lo último que se vio; ingresos, salidas y ajustes quedan en el teléfono
   y se suben solos cuando vuelve la conexión.
 - **Foto del remito** en los ingresos (hasta 3; también se puede agregar después desde el movimiento).
+- **Fotos del stock** en la ficha de cada material (hasta 6, con la fecha): cómo está el acopio de áridos, cuántos caños quedan.
 
 ## Datos y permisos
 
