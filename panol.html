@@ -67,7 +67,7 @@
     .pn-tabs button[aria-selected="true"] { color: var(--primary-dark); border-bottom-color: var(--primary-light); }
 
     .pn-flt { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; }
-    .pn-seg { display: inline-flex; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: 2px; }
+    .pn-seg { display: inline-flex; max-width: 100%; overflow-x: auto; scrollbar-width: none; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: 2px; }
     .pn-seg button { border: none; background: none; font: inherit; font-size: .78rem; font-weight: 700; color: var(--gray-500); padding: .26rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
     .pn-seg button[aria-pressed="true"] { background: #e8eef7; color: var(--primary); }
     .pn-seg button[data-f="bajo"][aria-pressed="true"] { background: #ffe8d4; color: #c2510c; }
@@ -129,9 +129,10 @@
     .pn-mov .l1 { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
     .pn-mov .l1 b { color: var(--primary-dark); font-size: .92rem; }
     .pn-mov .l1 .hr { margin-left: auto; font-size: .72rem; color: var(--gray-400); font-variant-numeric: tabular-nums; }
-    .pn-mov .its { font-size: .82rem; color: var(--gray-700); margin-top: .15rem; line-height: 1.4; }
-    .pn-mov .its span { white-space: nowrap; }
-    .pn-mov .meta { font-size: .74rem; color: var(--gray-500); margin-top: .2rem; }
+    /* Sin nowrap: un material de nombre largo ensanchaba la tarjeta y toda la página se corría de costado */
+    .pn-mov .its { font-size: .82rem; color: var(--gray-700); margin-top: .15rem; line-height: 1.4; overflow-wrap: anywhere; }
+    .pn-mov .meta { font-size: .74rem; color: var(--gray-500); margin-top: .2rem; overflow-wrap: anywhere; }
+    .pn-mov .l1 b { min-width: 0; overflow-wrap: anywhere; }
     .pn-mov.anulado .l1 b, .pn-mov.anulado .its { text-decoration: line-through; color: var(--gray-400); }
     .pn-vacio { text-align: center; color: var(--gray-500); font-size: .88rem; padding: 2rem 1rem; }
     .pn-vacio .pn-sq { margin: 0 auto .6rem; width: 48px; height: 48px; border-radius: 14px; }
@@ -279,6 +280,9 @@
     .pn-dlg { overflow-x: hidden; }
     .pn-dlg .form-group, .pn-row2 > * { min-width: 0; }
     @media (max-width: 560px) {
+      /* styles.css lo deja como hoja pegada abajo (recto abajo), pero acá el diálogo flota: las cuatro esquinas redondeadas */
+      #dlg-ov { padding: .6rem .6rem calc(.6rem + env(safe-area-inset-bottom, 0px)); }
+      .pn-dlg { border-radius: 18px; max-height: calc(100dvh - 1.2rem); padding-bottom: .9rem; }
       /* Menos de 16px y el iPhone hace zoom al tocar el campo: la hoja queda corrida y no entra en el ancho */
       .pn-dlg .form-control, .pn-dlg .pn-srch input { font-size: 16px; }
       /* La fecha de iOS/Android trae un ancho mínimo propio y se sale del borde */
