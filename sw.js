@@ -26,7 +26,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  const red = fetch(req).then(r => {
+  // no-cache: que el navegador no use su copia de hasta 10 min de Pages; si no cambió, el servidor
+  // contesta 304 y es casi nada. Si no, puede mezclar el HTML nuevo con el JS viejo.
+  const red = fetch(req, { cache: 'no-cache' }).then(r => {
     if (r.ok) { const copia = r.clone(); caches.open(CACHE).then(c => c.put(req, copia)); }
     return r;
   });
