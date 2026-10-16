@@ -60,6 +60,8 @@ const falta = a => a.activo && (a.stock <= 0 || ((a.minimo || 0) > 0 && a.stock 
 // Los faltantes se separan en dos: sin stock y bajo mínimo (todavía queda algo).
 const sinStock = a => a.activo && a.stock <= 0;
 const bajoMin = a => falta(a) && a.stock > 0;
+// Clase del color: rojo si no queda nada, naranja si está bajo el mínimo.
+const tonoFalta = a => sinStock(a) ? 'falta' : bajoMin(a) ? 'bajo' : '';
 const plural = (n, s, p) => `${fmtN(n)} ${n === 1 ? s : p}`;
 const sinTitulo = n => String(n || '').split(/\s+/).filter(p => p && !p.endsWith('.')).join(' ') || String(n || '');
 
@@ -350,13 +352,13 @@ function pintarStock() {
 }
 
 function filaArt(a) {
-  const f = falta(a);
+  const f = tonoFalta(a);
   const tag = !a.activo ? '<span class="pn-tag pn-tag--baja">De baja</span>'
-    : a.stock <= 0 ? '<span class="pn-tag pn-tag--cero">Sin stock</span>'
-    : f ? '<span class="pn-tag pn-tag--falta">Bajo mínimo</span>' : '';
+    : f === 'falta' ? '<span class="pn-tag pn-tag--cero">Sin stock</span>'
+    : f ? '<span class="pn-tag pn-tag--bajo">Bajo mínimo</span>' : '';
   const l2 = [a.minimo ? `Mín. ${fmtN(a.minimo)}` : '', tag].filter(Boolean).join(' · ') || '&nbsp;';
-  return `<button type="button" class="pn-r${f ? ' falta' : ''}${a.activo ? '' : ' baja'}" data-art="${esc(a.id)}">
-    <span class="pn-sq ${f ? 't-falta' : ''}">${icSvg('box')}</span>
+  return `<button type="button" class="pn-r${f ? ' ' + f : ''}${a.activo ? '' : ' baja'}" data-art="${esc(a.id)}">
+    <span class="pn-sq ${f ? 't-' + f : ''}">${icSvg('box')}</span>
     <span class="mid"><span class="nm">${esc(a.nombre)}</span><span class="l2">${l2}</span></span>
     <span class="qty"><b>${fmtN(a.stock)}</b><span>${esc(a.unidad || 'u')}</span></span></button>`;
 }
@@ -495,27 +497,27 @@ function cerrarDlg() {
 // ─── Ficha de un material ───────────────────────────
 function fichaArticulo(a) {
   if (!a) return;
-  const f = falta(a);
+  const f = tonoFalta(a);
   const hist = movs.filter(m => !m.anulado && (m.items || []).some(it => it.id === a.id)).slice(0, 15);
   const ult = t => { const m = movs.find(x => !x.anulado && t.includes(x.tipo) && x.items.some(it => it.id === a.id)); return m ? fechaLarga(m.fecha) : '—'; };
   // Quien carga corrige el stock acá mismo: se guarda como un Ajuste de inventario.
   const ajusta = puede && a.activo;
   const d = abrirDlg({
-    tono: f ? 't-falta' : '', icono: 'box', titulo: a.nombre,
+    tono: f ? 't-' + f : '', icono: 'box', titulo: a.nombre,
     sub: esc(a.categoria || 'Varios') + (a.activo ? '' : ' · <b>dado de baja</b>'),
     cuerpo: `
       ${ajusta ? `<div class="pn-aj">
         <label class="pn-aj-lbl" for="fa-real">Quedan</label>
         <div class="pn-aj-row">
-          <label class="pn-big pn-big--in${f ? ' falta' : ''}"><input id="fa-real" inputmode="decimal" enterkeyhint="done" autocomplete="off"
+          <label class="pn-big pn-big--in${f ? ' ' + f : ''}"><input id="fa-real" inputmode="decimal" enterkeyhint="done" autocomplete="off"
             value="${String(a.stock).replace('.', ',')}"><span>${esc(a.unidad || 'u')}</span></label>
           <button type="button" class="foc-btn foc-btn--vio" id="fa-aj" disabled>${icSvg('checkSm')}Ajustar</button>
         </div>
         <div class="pn-aj-sub" id="fa-aj-sub">Sistema: ${fmtN(a.stock)} ${esc(a.unidad || 'u')}</div>
         <div class="pn-err hidden" id="fa-aj-err"></div>
-      </div>` : `<div class="pn-big${f ? ' falta' : ''}"><b>${fmtN(a.stock)}</b><span>${esc(a.unidad || 'u')} en el pañol</span></div>`}
+      </div>` : `<div class="pn-big${f ? ' ' + f : ''}"><b>${fmtN(a.stock)}</b><span>${esc(a.unidad || 'u')} en el pañol</span></div>`}
       <div class="pn-kv" style="margin-top:.6rem">
-        <span>Mínimo</span><b>${a.minimo ? fmtN(a.minimo) + ' ' + esc(a.unidad || 'u') + (f ? ' · <span style="color:#b02a2a">faltan ' + fmtN(a.minimo - a.stock) + '</span>' : '') : 'Sin mínimo'}</b>
+        <span>Mínimo</span><b>${a.minimo ? fmtN(a.minimo) + ' ' + esc(a.unidad || 'u') + (f ? ` · <span style="color:${f === 'falta' ? '#b02a2a' : '#c2510c'}">faltan ` + fmtN(a.minimo - a.stock) + '</span>' : '') : 'Sin mínimo'}</b>
         <span>Último ingreso</span><b>${ult(['ingreso', 'traspaso_in'])}</b>
         <span>Última salida</span><b>${ult(['salida', 'traspaso_out'])}</b>
       </div>

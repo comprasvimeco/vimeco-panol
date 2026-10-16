@@ -14,7 +14,8 @@
   <meta name="apple-mobile-web-app-title" content="VIMECO Pañol">
   <style>
     /* ===== Pañol: estética de pastillas =====
-       Tonos por tipo de movimiento: ingreso verde, salida ámbar, ajuste violeta, traspaso celeste, faltante rojo. */
+       Tonos por tipo de movimiento: ingreso verde, salida ámbar, ajuste violeta, traspaso celeste.
+       Faltantes: sin stock rojo, bajo mínimo naranja. */
     .pn-main { max-width: 1000px; }
     .pn-ttl { display: flex; align-items: center; gap: .45rem; margin-bottom: .8rem; flex-wrap: wrap; }
     .pn-t { font-size: 1.45rem; font-weight: 700; color: var(--primary-dark); margin: 0 .2rem 0 0; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; }
@@ -26,6 +27,7 @@
     .pn-cnt--falta b { color: #b02a2a; }
     .pn-cnt--cero { background: #b02a2a; color: #fff; }
     .pn-cnt--cero b { color: #fff; }
+    .pn-cnt--bajo, .pn-cnt--bajo b { background: #ffe8d4; color: #c2510c; }
     .pn-cnt--ro { background: var(--gray-100); border-color: transparent; }
     .pn-cnt .icon { width: 12px; height: 12px; }
 
@@ -54,6 +56,7 @@
     .t-aj   { background: #f1e8fb; color: #6b3fa0; }
     .t-tr   { background: #e0f0fb; color: #0e6a96; }
     .t-falta{ background: #fde6e6; color: #b02a2a; }
+    .t-bajo { background: #ffe8d4; color: #c2510c; }
     .t-gr   { background: #eceef1; color: #5b6573; }
 
     /* Pestañas Stock / Movimientos */
@@ -67,7 +70,7 @@
     .pn-seg { display: inline-flex; background: var(--white); border: 1px solid var(--gray-200); border-radius: 999px; padding: 2px; }
     .pn-seg button { border: none; background: none; font: inherit; font-size: .78rem; font-weight: 700; color: var(--gray-500); padding: .26rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
     .pn-seg button[aria-pressed="true"] { background: #e8eef7; color: var(--primary); }
-    .pn-seg button[data-f="bajo"][aria-pressed="true"] { background: #fde6e6; color: #b02a2a; }
+    .pn-seg button[data-f="bajo"][aria-pressed="true"] { background: #ffe8d4; color: #c2510c; }
     .pn-seg button[data-f="cero"][aria-pressed="true"] { background: #b02a2a; color: #fff; }
     .pn-cats { display: flex; gap: .35rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; max-width: 100%; }
     .pn-cats::-webkit-scrollbar { display: none; }
@@ -98,9 +101,11 @@
     .pn-r .qty b { display: block; font-size: 1.12rem; font-weight: 700; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1.15; }
     .pn-r .qty span { font-size: .72rem; color: var(--gray-500); }
     .pn-r.falta .qty b { color: #b02a2a; }
+    .pn-r.bajo .qty b { color: #c2510c; }
     .pn-r.baja { opacity: .55; }
     .pn-tag { display: inline-flex; align-items: center; gap: .25rem; font-size: .66rem; font-weight: 700; border-radius: 999px; padding: .06rem .45rem; white-space: nowrap; }
     .pn-tag--falta { background: #fde6e6; color: #b02a2a; }
+    .pn-tag--bajo  { background: #ffe8d4; color: #c2510c; }
     .pn-tag--cero  { background: #b02a2a; color: #fff; }
     .pn-tag--baja  { background: #eceef1; color: #5b6573; }
 
@@ -196,6 +201,7 @@
     .pn-big { display: flex; align-items: baseline; gap: .4rem; font-family: var(--font-num); }
     .pn-big b { font-size: 2rem; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1; }
     .pn-big.falta b { color: #b02a2a; }
+    .pn-big.bajo b { color: #c2510c; }
     /* Ficha: el número grande es un campo para corregir el stock a lo que hay de verdad. */
     .pn-aj-lbl { display: block; font-size: .72rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .3rem; }
     .pn-aj-row { display: flex; align-items: center; gap: .5rem; }
@@ -204,6 +210,7 @@
     .pn-big--in:focus-within { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(37,87,167,.12); }
     .pn-big--in input { flex: 1 1 auto; width: 100%; min-width: 3ch; border: 0; outline: 0; background: transparent; padding: 0; font: inherit; font-size: 2rem; font-weight: 700; line-height: 1.2; color: var(--primary-dark); font-variant-numeric: tabular-nums; }
     .pn-big--in.falta input { color: #b02a2a; }
+    .pn-big--in.bajo input { color: #c2510c; }
     .pn-big--in span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gray-500); font-size: .9rem; }
     /* En escritorio sobra ancho: la unidad se ve entera y el número se achica antes que ella. */
     @media (min-width: 600px) { .pn-big--in span { flex: none; } .pn-big--in input { flex: 1 1 0; } }
@@ -291,7 +298,7 @@
       <h1 class="pn-t" id="obra-nombre"></h1>
       <span class="pn-cnt" id="cnt-arts"></span>
       <button type="button" class="pn-cnt pn-cnt--falta pn-cnt--cero hidden" id="cnt-cero"></button>
-      <button type="button" class="pn-cnt pn-cnt--falta hidden" id="cnt-falta"></button>
+      <button type="button" class="pn-cnt pn-cnt--falta pn-cnt--bajo hidden" id="cnt-falta"></button>
       <span class="pn-cnt pn-cnt--ro hidden" id="cnt-ro"></span>
       <div class="pn-push">
         <button type="button" class="foc-btn foc-btn--pdf" id="btn-exportar"></button>
